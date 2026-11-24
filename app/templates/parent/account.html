@@ -1,8 +1,8 @@
 {% extends 'base.html' %}
-{% block title %}My account &middot; {{ app_name }}{% endblock %}
+{% block title %}我的账号 &middot; {{ app_name }}{% endblock %}
 
 {% block content %}
-<a class="backlink" href="{{ url_for('parent.family') }}">&larr; Family</a>
+<a class="backlink" href="{{ url_for('parent.family') }}">&larr; 家庭</a>
 
 <section class="card hero">
   <span class="hero__face">{{ me.avatar }}</span>
@@ -13,20 +13,20 @@
 </section>
 
 <section class="card card--form">
-  <h2 class="card__title">Your details</h2>
+  <h2 class="card__title">账号信息</h2>
   <form method="post" action="{{ url_for('parent.update_profile') }}" class="formgrid">
     {{ csrf_field() }}
     <label class="field field--grow">
-      <span>Name</span>
+      <span>姓名</span>
       <input name="name" value="{{ me.name }}" maxlength="40" required>
     </label>
     <label class="field field--grow">
-      <span>Email <em>(you log in with this)</em></span>
+      <span>电子邮箱 <em>(登录账号)</em></span>
       <input name="email" type="email" value="{{ me.email }}" required autocomplete="username">
     </label>
 
     <fieldset class="field field--full">
-      <span>Your icon</span>
+      <span>头像</span>
       <div class="avatarpick">
         {% for a in avatars %}
           <label>
@@ -37,7 +37,7 @@
       </div>
     </fieldset>
 
-    <button class="btn btn--primary" type="submit">Save details</button>
+    <button class="btn btn--primary" type="submit">保存</button>
   </form>
 </section>
 
@@ -50,22 +50,22 @@
 </section>
 
 <section class="card card--form">
-  <h2 class="card__title">Change your password</h2>
+  <h2 class="card__title">修改密码</h2>
   <form method="post" action="{{ url_for('parent.change_password') }}" class="formgrid">
     {{ csrf_field() }}
     <label class="field field--grow">
-      <span>Current password</span>
+      <span>当前密码</span>
       <input name="current_password" type="password" required autocomplete="current-password">
     </label>
     <label class="field field--grow">
-      <span>New password</span>
+      <span>新密码</span>
       <input name="new_password" type="password" required minlength="8" autocomplete="new-password">
     </label>
     <label class="field field--grow">
-      <span>Confirm new password</span>
+      <span>确认密码</span>
       <input name="confirm_password" type="password" required minlength="8" autocomplete="new-password">
     </label>
-    <button class="btn btn--primary" type="submit">Change password</button>
+    <button class="btn btn--primary" type="submit">修改密码</button>
   </form>
 </section>
 {% endblock %}

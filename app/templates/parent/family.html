@@ -186,22 +186,22 @@
 </div>
 
 <section class="card card--form">
-  <h2 class="card__title">Add a grown-up</h2>
+    <h2 class="card__title">添加家长</h2>
   <form method="post" action="{{ url_for('parent.add_parent') }}" class="formgrid">
     {{ csrf_field() }}
     <label class="field field--grow">
-      <span>Name</span>
+      <span>姓名</span>
       <input name="name" required maxlength="40" placeholder="Partner's name">
     </label>
     <label class="field field--grow">
-      <span>Email</span>
+      <span>电子邮箱</span>
       <input name="email" type="email" required autocomplete="off">
     </label>
     <label class="field field--grow">
-      <span>Password</span>
+      <span>密码</span>
       <input name="password" type="password" required minlength="8" autocomplete="new-password">
     </label>
-    <button class="btn btn--primary" type="submit">Add grown-up</button>
+    <button class="btn btn--primary" type="submit">添加家长</button>
   </form>
 </section>
 {% endblock %}

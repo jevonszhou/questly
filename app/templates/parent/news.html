@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
-{% block title %}Notifications &middot; {{ app_name }}{% endblock %}
+{% block title %}通知 &middot; {{ app_name }}{% endblock %}
 
 {% block content %}
 <div class="section__head section__head--page">
-  <h2>Notifications</h2>
+  <h2>通知</h2>
   <a class="section__link" href="{{ url_for('parent.account') }}">Where these go</a>
 </div>
 
@@ -19,7 +19,7 @@
   {% else %}
     <div class="empty">
       <div class="empty__emoji">&#128276;</div>
-      <p>Nothing yet.</p>
+      <p>暂时没有通知。</p>
     </div>
   {% endfor %}
 </div>
