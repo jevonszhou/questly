@@ -2,23 +2,33 @@
 {% block title %}{{ kid.name }} &middot; {{ app_name }}{% endblock %}
 
 {% block content %}
-<a class="backlink" href="{{ url_for('parent.dashboard') }}">&larr; All kids</a>
+<a class="backlink" href="{{ url_for('parent.dashboard') }}">&larr; 所有孩子</a>
 
 <section class="card hero" style="--kid:{{ kid.color }}">
   <span class="hero__face">{{ kid.avatar }}</span>
   <div class="hero__text">
     <h1>{{ kid.name }}</h1>
-    <p>{{ kid.points }} points now &middot; {{ kid.lifetime_points or 0 }} earned all time</p>
+    <p>{{ kid.points }} 当前积分 &middot; 累计获得 {{ kid.lifetime_points or 0 }}</p>
   </div>
 </section>
 
+{% if pet %}
+<section class="card pet-summary">
+  <span class="pet-face">{{ {'cat':'🐱','dog':'🐶','rabbit':'🐰','dinosaur':'🦖'}.get(pet.species, '🐾') }}</span>
+  <div><strong>{{ pet.name }}</strong><p>{{ pet.status }} · {{ pet.hp }}/{{ pet.max_hp }} HP</p></div>
+  <a class="btn btn--ghost btn--sm" href="{{ url_for('parent.kid_pet', kid_id=kid._id) }}">管理宠物</a>
+</section>
+{% else %}
+<p><a class="btn btn--ghost btn--sm" href="{{ url_for('parent.kid_pet', kid_id=kid._id) }}">设置宠物</a></p>
+{% endif %}
+
 <section class="card card--form">
-  <h2 class="card__title">Give or take points</h2>
+  <h2 class="card__title">奖励或扣除积分</h2>
   <form class="award" method="post" action="{{ url_for('parent.award') }}">
-    {{ csrf_field() }}
+    {{ csrf_field() }}{{ idempotency_field() }}
     <input type="hidden" name="kid_id" value="{{ kid._id }}">
     <input type="hidden" name="next" value="{{ url_for('parent.kid_detail', kid_id=kid._id) }}">
-    <input class="award__reason" name="reason" maxlength="120" placeholder="What's it for?">
+    <input class="award__reason" name="reason" maxlength="240" placeholder="原因（必填）" required>
     <div class="award__row">
       {% for n in quick %}
         <button class="btn btn--pill" type="submit" name="amount" value="{{ n }}">+{{ n }}</button>
@@ -26,14 +36,14 @@
     </div>
     <div class="award__custom">
       <input type="number" name="amount" min="1" max="1000" placeholder="0" inputmode="numeric">
-      <button class="btn btn--sm btn--primary" type="submit">Give</button>
-      <button class="btn btn--sm btn--danger" type="submit" name="negate" value="1">Take away</button>
+      <button class="btn btn--sm btn--primary" type="submit">奖励</button>
+      <button class="btn btn--sm btn--danger" type="submit" name="negate" value="1">扣除</button>
     </div>
   </form>
 </section>
 
 <section class="section">
-  <div class="section__head"><h2>Rewards bought</h2></div>
+  <div class="section__head"><h2>奖励兑换记录</h2></div>
   <div class="card feed">
     {% for r in redemptions %}
       <div class="feed__row">
@@ -51,25 +61,25 @@
         {% endif %}
       </div>
     {% else %}
-      <div class="empty"><p>Nothing bought yet.</p></div>
+      <div class="empty"><p>还没有兑换记录。</p></div>
     {% endfor %}
   </div>
 </section>
 
 <section class="section">
-  <div class="section__head"><h2>Full history</h2></div>
+  <div class="section__head"><h2>积分完整流水</h2></div>
   <div class="card feed">
     {% for t in history %}
       <div class="feed__row">
         <span class="feed__delta {{ 'is-up' if t.delta > 0 else 'is-down' }}">{{ t.delta | signed }}</span>
         <div class="feed__text">
           <p>{{ t.reason }}</p>
-          <span class="feed__when">{{ t.created_at | datetime }} &middot; by {{ t.actor_name }}</span>
+          <span class="feed__when">余额 {{ t.balance_before if t.balance_before is defined else '—' }} → {{ t.balance_after }} · {{ t.created_at | datetime }} · 操作人：{{ t.actor_name }}</span>
         </div>
         <span class="feed__bal">{{ t.balance_after }} &#11088;</span>
       </div>
     {% else %}
-      <div class="empty"><p>No history yet.</p></div>
+      <div class="empty"><p>还没有积分流水。</p></div>
     {% endfor %}
   </div>
 </section>

@@ -1,12 +1,12 @@
 {% extends 'base.html' %}
-{% block title %}Pick your look &middot; {{ app_name }}{% endblock %}
+{% block title %}选择外观 · {{ app_name }}{% endblock %}
 {% block body_class %}kidview{% endblock %}
 {% block chrome %}{% include 'partials/kidhead.html' %}{% endblock %}
 {% block bottomnav %}{% include 'partials/kidnav.html' %}{% endblock %}
 
 {% block content %}
 <div class="section__head section__head--page">
-  <h2>Pick your look</h2>
+  <h2>选择你的主题</h2>
 </div>
 
 <form method="post" action="{{ url_for('kid.choose_theme') }}">
@@ -24,6 +24,6 @@
       </label>
     {% endfor %}
   </div>
-  <button class="btn btn--primary btn--block" type="submit">Use this look</button>
+  <button class="btn btn--primary btn--block" type="submit">使用此主题</button>
 </form>
 {% endblock %}

@@ -1,73 +1,73 @@
 {% extends 'base.html' %}
-{% block title %}Shop &middot; {{ app_name }}{% endblock %}
+{% block title %}奖励商城 · {{ app_name }}{% endblock %}
 
 {% block content %}
 <div class="section__head section__head--page">
-  <h2>The shop</h2>
-  <span class="section__hint">{{ rewards | selectattr('active') | list | length }} on sale</span>
+  <h2>奖励商城</h2>
+  <span class="section__hint">{{ rewards | selectattr('active') | list | length }} 项上架中</span>
 </div>
 
 <section class="card card--form">
-  <h2 class="card__title">Add a reward</h2>
+  <h2 class="card__title">添加奖励</h2>
   <form method="post" action="{{ url_for('parent.create_reward') }}" class="formgrid">
     {{ csrf_field() }}
     <label class="field field--emoji">
-      <span>Icon</span>
+      <span>图标</span>
       <input name="emoji" maxlength="4" value="&#127873;" class="emoji-input">
     </label>
     <label class="field field--grow">
-      <span>Name</span>
-      <input name="title" required maxlength="80" placeholder="Extra screen time">
+      <span>名称</span>
+      <input name="title" required maxlength="80" placeholder="额外屏幕时间">
     </label>
     <label class="field field--num">
-      <span>Cost</span>
+      <span>积分价格</span>
       <input name="cost" type="number" min="1" max="100000" value="20" inputmode="numeric" required>
     </label>
     <label class="field field--full">
-      <span>Description <em>(optional)</em></span>
-      <input name="description" maxlength="240" placeholder="30 minutes, your choice of device">
+      <span>说明 <em>（可选）</em></span>
+      <input name="description" maxlength="240" placeholder="可自选使用的设备，时长 30 分钟">
     </label>
     <fieldset class="field field--full stockbox">
-      <span>How many are available?</span>
+      <span>库存设置</span>
       <div class="radiorow">
-        <label><input type="radio" name="stock_mode" value="unlimited" checked><span>Unlimited</span></label>
-        <label><input type="radio" name="stock_mode" value="fixed" ><span>A fixed number</span></label>
-        <label><input type="radio" name="stock_mode" value="periodic" ><span>Some every day/week</span></label>
+        <label><input type="radio" name="stock_mode" value="unlimited" checked><span>不限量</span></label>
+        <label><input type="radio" name="stock_mode" value="fixed" ><span>固定库存</span></label>
+        <label><input type="radio" name="stock_mode" value="periodic" ><span>周期限量</span></label>
       </div>
 
       <div class="stockbox__row" data-when="fixed">
         <label class="field field--num">
-          <span>Total available</span>
+          <span>总库存</span>
           <input type="number" name="stock" min="0" max="9999" value="1">
         </label>
-        <p class="card__note">Counts down as they're bought, and doesn't come back.</p>
+        <p class="card__note">兑换后库存会减少，拒绝兑换时会恢复。</p>
       </div>
 
       <div class="stockbox__row" data-when="periodic">
         <label class="field field--num">
-          <span>How many</span>
+          <span>每周期数量</span>
           <input type="number" name="stock_limit" min="1" max="999" value="1">
         </label>
         <label class="field field--num">
-          <span>Every</span>
+          <span>周期</span>
           <select name="stock_period">
-            <option value="daily" >Day</option>
-            <option value="weekly" >Week</option>
-            <option value="monthly" >Month</option>
+            <option value="daily" >每天</option>
+            <option value="weekly" >每周</option>
+            <option value="monthly" >每月</option>
           </select>
         </label>
         <label class="field field--num">
-          <span>For</span>
+          <span>适用范围</span>
           <select name="stock_scope">
-            <option value="child" >Each child</option>
-            <option value="family" >The whole family to share</option>
+            <option value="child" >每个孩子</option>
+            <option value="family" >全家共享</option>
           </select>
         </label>
-        <p class="card__note">Resets on its own — nothing to top up.</p>
+        <p class="card__note">库存会按周期自动重置。</p>
       </div>
     </fieldset>
 
-    <button class="btn btn--primary" type="submit">Add to shop</button>
+    <button class="btn btn--primary" type="submit">上架奖励</button>
   </form>
 </section>
 
@@ -78,7 +78,7 @@
         <span class="rowcard__emoji">{{ r.emoji }}</span>
         <span class="rowcard__title">
           {{ r.title }}
-          {% if not r.active %}<em class="tag">hidden</em>{% endif %}
+          {% if not r.active %}<em class="tag">已下架</em>{% endif %}
           {% if r.stock_text %}<em class="tag">{{ r.stock_text }}</em>{% endif %}
         </span>
         <span class="price">{{ r.cost }} &#11088;</span>
@@ -88,75 +88,75 @@
       <form method="post" action="{{ url_for('parent.update_reward', reward_id=r._id) }}" class="formgrid">
         {{ csrf_field() }}
         <label class="field field--emoji">
-          <span>Icon</span>
+          <span>图标</span>
           <input name="emoji" maxlength="4" value="{{ r.emoji }}" class="emoji-input">
         </label>
         <label class="field field--grow">
-          <span>Name</span>
+          <span>名称</span>
           <input name="title" value="{{ r.title }}" maxlength="80" required>
         </label>
         <label class="field field--num">
-          <span>Cost</span>
+          <span>积分价格</span>
           <input name="cost" type="number" min="1" max="100000" value="{{ r.cost }}" required>
         </label>
         <label class="field field--full">
-          <span>Description</span>
+          <span>说明</span>
           <input name="description" value="{{ r.description or '' }}" maxlength="240">
         </label>
     <fieldset class="field field--full stockbox">
-      <span>How many are available?</span>
+      <span>库存设置</span>
       <div class="radiorow">
-        <label><input type="radio" name="stock_mode" value="unlimited" {{ 'checked' if r.mode == 'unlimited' }}><span>Unlimited</span></label>
-        <label><input type="radio" name="stock_mode" value="fixed" {{ 'checked' if r.mode == 'fixed' }}><span>A fixed number</span></label>
-        <label><input type="radio" name="stock_mode" value="periodic" {{ 'checked' if r.mode == 'periodic' }}><span>Some every day/week</span></label>
+        <label><input type="radio" name="stock_mode" value="unlimited" {{ 'checked' if r.mode == 'unlimited' }}><span>不限量</span></label>
+        <label><input type="radio" name="stock_mode" value="fixed" {{ 'checked' if r.mode == 'fixed' }}><span>固定库存</span></label>
+        <label><input type="radio" name="stock_mode" value="periodic" {{ 'checked' if r.mode == 'periodic' }}><span>周期限量</span></label>
       </div>
 
       <div class="stockbox__row" data-when="fixed">
         <label class="field field--num">
-          <span>Total available</span>
+          <span>总库存</span>
           <input type="number" name="stock" min="0" max="9999" value="{{ r.stock or 1 }}">
         </label>
-        <p class="card__note">Counts down as they're bought, and doesn't come back.</p>
+        <p class="card__note">兑换后库存减少，拒绝兑换时会恢复。</p>
       </div>
 
       <div class="stockbox__row" data-when="periodic">
         <label class="field field--num">
-          <span>How many</span>
+          <span>每周期数量</span>
           <input type="number" name="stock_limit" min="1" max="999" value="{{ r.stock_limit or 1 }}">
         </label>
         <label class="field field--num">
-          <span>Every</span>
+          <span>周期</span>
           <select name="stock_period">
-            <option value="daily" {{ 'selected' if r.stock_period == 'daily' }}>Day</option>
-            <option value="weekly" {{ 'selected' if r.stock_period == 'weekly' }}>Week</option>
-            <option value="monthly" {{ 'selected' if r.stock_period == 'monthly' }}>Month</option>
+            <option value="daily" {{ 'selected' if r.stock_period == 'daily' }}>每天</option>
+            <option value="weekly" {{ 'selected' if r.stock_period == 'weekly' }}>每周</option>
+            <option value="monthly" {{ 'selected' if r.stock_period == 'monthly' }}>每月</option>
           </select>
         </label>
         <label class="field field--num">
-          <span>For</span>
+          <span>适用范围</span>
           <select name="stock_scope">
-            <option value="child" {{ 'selected' if r.stock_scope == 'child' }}>Each child</option>
-            <option value="family" {{ 'selected' if r.stock_scope == 'family' }}>The whole family to share</option>
+            <option value="child" {{ 'selected' if r.stock_scope == 'child' }}>每个孩子</option>
+            <option value="family" {{ 'selected' if r.stock_scope == 'family' }}>全家共享</option>
           </select>
         </label>
-        <p class="card__note">Resets on its own — nothing to top up.</p>
+        <p class="card__note">库存会按周期自动重置。</p>
       </div>
     </fieldset>
 
         <div class="rowcard__actions">
-          <button class="btn btn--primary btn--sm" type="submit" name="action" value="save">Save</button>
+          <button class="btn btn--primary btn--sm" type="submit" name="action" value="save">保存</button>
           <button class="btn btn--ghost btn--sm" type="submit" name="action" value="toggle">
-            {{ 'Show in shop' if not r.active else 'Hide from shop' }}
+            {{ '重新上架' if not r.active else '下架' }}
           </button>
           <button class="btn btn--danger btn--sm" type="submit" name="action" value="delete"
-                  data-confirm="Delete '{{ r.title }}' from the shop?">Delete</button>
+                  data-confirm="确定从商城删除「{{ r.title }}」吗？">删除</button>
         </div>
       </form>
     </details>
   {% else %}
     <div class="empty empty--big">
       <div class="empty__emoji">&#128717;&#65039;</div>
-      <p>No rewards yet. Add the first one above.</p>
+      <p>还没有奖励，请在上方添加。</p>
     </div>
   {% endfor %}
 </div>

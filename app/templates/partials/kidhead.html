@@ -8,11 +8,11 @@
       </div>
     </div>
     <a class="bell bell--kid {{ 'has-new' if unread_news }}" href="{{ url_for('kid.news') }}"
-       aria-label="What's new">
+       aria-label="最新消息">
       <span class="bell__ico">&#128276;</span>
       {% if unread_news %}<span class="pip">{{ unread_news }}</span>{% endif %}
     </a>
-    <div class="balance" title="Your points">
+    <div class="balance" title="你的积分">
       <span class="balance__star">&#11088;</span>
       <span class="balance__n" data-count="{{ kid.points }}">{{ kid.points }}</span>
     </div>

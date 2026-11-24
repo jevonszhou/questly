@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}我的宠物 · {{ app_name }}{% endblock %}
+{% block body_class %}kidview{% endblock %}
+{% block chrome %}{% include 'partials/kidhead.html' %}{% endblock %}
+{% block bottomnav %}{% include 'partials/kidnav.html' %}{% endblock %}
+{% block content %}
+<section class="card pet-card">
+  {% if pet %}
+    <div class="pet-card__face">{{ {'cat':'🐱','dog':'🐶','rabbit':'🐰','dinosaur':'🦖'}.get(pet.species, '🐾') }}</div>
+    <h1>{{ pet.name }}</h1>
+    <p class="pet-card__status">{{ {'healthy':'健康','good':'良好','care':'需要照顾','weak':'虚弱','recover':'需要恢复'}.get(pet.status, '健康') }}</p>
+    <div class="bar pet-card__bar"><div class="bar__fill" style="width: {{ (pet.hp / pet.max_hp * 100) | round(0, 'floor') }}%"></div></div>
+    <p class="pet-card__hp">{{ pet.hp }} / {{ pet.max_hp }} HP</p>
+    <p>完成任务、认真表现可以帮助宠物恢复活力。兑换奖励不会扣除宠物生命值。</p>
+    <form method="post" action="{{ url_for('kid.customize_companion') }}" class="formgrid pet-customize">
+      {{ csrf_field() }}
+      <label class="field field--grow"><span>宠物名字</span>
+        <input name="name" value="{{ pet.name }}" maxlength="40" required>
+      </label>
+      <label class="field"><span>宠物种类</span>
+        <select name="species">
+          <option value="cat" {{ 'selected' if pet.species == 'cat' }}>猫咪</option>
+          <option value="dog" {{ 'selected' if pet.species == 'dog' }}>小狗</option>
+          <option value="rabbit" {{ 'selected' if pet.species == 'rabbit' }}>兔子</option>
+          <option value="dinosaur" {{ 'selected' if pet.species == 'dinosaur' }}>恐龙</option>
+        </select>
+      </label>
+      <button class="btn btn--primary" type="submit">保存外观</button>
+    </form>
+  {% else %}
+    <div class="empty"><div class="empty__emoji">🐾</div><h1>还没有宠物</h1>
+      <p>请让家长帮你领养一只宠物伙伴。</p></div>
+  {% endif %}
+</section>
+
+<section class="section">
+  <div class="section__head"><h2>宠物生命值记录</h2></div>
+  <div class="card feed">
+    {% for event in history %}
+      <div class="feed__row">
+        <span class="feed__delta {{ 'is-up' if event.applied_hp_delta > 0 else 'is-down' }}">{{ event.applied_hp_delta | signed }}</span>
+        <div class="feed__text"><p>{{ event.reason or '宠物生命值变动' }}</p>
+          <span class="feed__when">{{ event.created_at | datetime }} · {{ event.hp_before }} → {{ event.hp_after }} HP</span></div>
+      </div>
+    {% else %}
+      <div class="empty"><p>还没有生命值变化记录。</p></div>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

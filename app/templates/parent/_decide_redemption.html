@@ -2,12 +2,12 @@
   <form method="post" action="{{ url_for('parent.decide_redemption_route', redemption_id=r._id) }}">
     {{ csrf_field() }}
     <input type="hidden" name="next" value="{{ request.path }}">
-    <button class="btn btn--go btn--sm" type="submit" name="decision" value="approve">Given</button>
+    <button class="btn btn--go btn--sm" type="submit" name="decision" value="approve" data-confirm="确认已将奖励交给孩子？">已交付</button>
   </form>
   <form method="post" action="{{ url_for('parent.decide_redemption_route', redemption_id=r._id) }}">
     {{ csrf_field() }}
     <input type="hidden" name="next" value="{{ request.path }}">
     <button class="btn btn--ghost btn--sm" type="submit" name="decision" value="reject"
-            data-confirm="Refund {{ r.cost }} points to {{ r.kid_name }}?">Refund</button>
+            data-confirm="拒绝此兑换并退还 {{ r.kid_name }} 的 {{ r.cost }} 积分？">拒绝并退款</button>
   </form>
 </div>

@@ -122,7 +122,7 @@ def get_user(db, user_id):
 
 
 def list_kids(db):
-    return list(db.users.find({"role": "kid"}).sort("name", 1))
+    return list(db.users.find({"role": "kid", "status": {"$ne": "inactive"}}).sort("name", 1))
 
 
 def list_parents(db):
@@ -139,24 +139,36 @@ def create_parent(db, name, email, password):
         "name": name.strip(),
         "email": email.strip().lower(),
         "password_hash": generate_password_hash(password),
+        "auth_version": 0,
+        "status": "active",
+        "locale": "zh_CN",
         "avatar": "\U0001f9d1",
         "created_at": now(),
     }
     return db.users.insert_one(doc).inserted_id
 
 
-def create_kid(db, name, avatar, color, pin=None, points=0):
+def create_kid(db, name, avatar, color, pin=None, points=0, actor=None):
     doc = {
         "role": "kid",
         "name": name.strip(),
         "avatar": avatar or AVATARS[0],
         "color": color or COLORS[0][1],
         "pin_hash": generate_password_hash(pin) if pin else None,
-        "points": int(points),
-        "lifetime_points": int(points),
+        "points": 0,
+        "lifetime_points": 0,
+        "locale": "zh_CN",
+        "status": "active",
         "created_at": now(),
     }
-    return db.users.insert_one(doc).inserted_id
+    kid_id = db.users.insert_one(doc).inserted_id
+    kid = db.users.find_one({"_id": kid_id})
+    from .services.pets import ensure_pet
+    ensure_pet(db, kid)
+    if int(points or 0) > 0:
+        adjust_points(db, kid_id, int(points), "初始积分", actor,
+                      kind="parent_award")
+    return kid_id
 
 
 def verify_parent(db, email, password):
@@ -167,8 +179,8 @@ def verify_parent(db, email, password):
 
 
 def verify_kid_pin(kid, pin):
-    if not kid.get("pin_hash"):
-        return True  # no PIN set: tap the avatar and you're in
+    if kid.get("status") == "inactive" or not kid.get("pin_hash"):
+        return False
     return bool(pin) and check_password_hash(kid["pin_hash"], pin)
 
 
@@ -183,34 +195,34 @@ def update_parent(db, parent_id, name=None, email=None, avatar=None):
     """Update a grown-up's profile. Returns (ok, error_message)."""
     _id = oid(parent_id)
     if not _id:
-        return False, "Couldn't find that account."
+        return False, "找不到此账户。"
 
     changes = {}
 
     if name is not None:
         name = name.strip()[:40]
         if not name:
-            return False, "A name can't be blank."
+            return False, "姓名不能为空。"
         changes["name"] = name
 
     if email is not None:
         email = email.strip().lower()
         if "@" not in email or len(email) < 5:
-            return False, "That doesn't look like an email address."
+            return False, "请输入有效的邮箱地址。"
         clash = db.users.find_one({"email": email, "_id": {"$ne": _id}})
         if clash:
-            return False, "Another account already uses that email."
+            return False, "此邮箱已被其他账户使用。"
         changes["email"] = email
 
     if avatar:
         changes["avatar"] = avatar[:8]
 
     if not changes:
-        return False, "Nothing to change."
+        return False, "没有需要保存的内容。"
 
     result = db.users.update_one({"_id": _id, "role": "parent"}, {"$set": changes})
     if not result.matched_count:
-        return False, "Couldn't find that account."
+        return False, "找不到此账户。"
     return True, None
 
 
@@ -218,15 +230,16 @@ def set_parent_password(db, parent_id, password):
     """Returns (ok, error_message)."""
     _id = oid(parent_id)
     if not _id:
-        return False, "Couldn't find that account."
+        return False, "找不到此账户。"
     if len(password or "") < 8:
-        return False, "Use a password of at least 8 characters."
+        return False, "密码至少需要 8 个字符。"
     result = db.users.update_one(
         {"_id": _id, "role": "parent"},
-        {"$set": {"password_hash": generate_password_hash(password)}},
+        {"$set": {"password_hash": generate_password_hash(password)},
+         "$inc": {"auth_version": 1}},
     )
     if not result.matched_count:
-        return False, "Couldn't find that account."
+        return False, "找不到此账户。"
     return True, None
 
 
@@ -312,7 +325,8 @@ def goal_for(db, kid, rewards):
 def set_kid_pin(db, kid_id, pin):
     db.users.update_one(
         {"_id": oid(kid_id)},
-        {"$set": {"pin_hash": generate_password_hash(pin) if pin else None}},
+        {"$set": {"pin_hash": generate_password_hash(pin) if pin else None},
+         "$inc": {"auth_version": 1}},
     )
 
 
@@ -320,44 +334,14 @@ def set_kid_pin(db, kid_id, pin):
 # points ledger
 # --------------------------------------------------------------------------
 
-def adjust_points(db, kid_id, delta, reason, actor, kind="award"):
-    """Apply a point change and write a ledger entry. Returns (kid, entry) or
-    (None, None) when the kid does not exist. Balance never goes below zero."""
-    _id = oid(kid_id)
-    if not _id:
-        return None, None
-
-    delta = int(delta)
-    if delta < 0:
-        # Clamp a deduction to whatever the kid actually has.
-        current = db.users.find_one({"_id": _id}, {"points": 1})
-        if not current:
-            return None, None
-        delta = -min(-delta, int(current.get("points", 0)))
-
-    inc = {"points": delta}
-    if delta > 0:
-        inc["lifetime_points"] = delta
-
-    kid = db.users.find_one_and_update(
-        {"_id": _id, "role": "kid"}, {"$inc": inc}, return_document=True
-    )
-    if not kid:
-        return None, None
-
-    entry = {
-        "kid_id": _id,
-        "kid_name": kid["name"],
-        "delta": delta,
-        "reason": reason or ("Points awarded" if delta >= 0 else "Points removed"),
-        "kind": kind,
-        "actor_id": actor.get("_id") if actor else None,
-        "actor_name": actor.get("name") if actor else "Questly",
-        "balance_after": kid.get("points", 0),
-        "created_at": now(),
-    }
-    db.transactions.insert_one(entry)
-    return kid, entry
+def adjust_points(db, kid_id, delta, reason, actor, kind="award", *,
+                  idempotency_key=None, source_type="manual", source_id=None):
+    """Compatibility wrapper for the single transactional points service."""
+    from .services.points import adjust_points as apply
+    mapped = {"award": "parent_award", "deduct": "parent_deduct"}.get(kind, kind)
+    return apply(db, kid_id, delta, reason, actor, kind=mapped,
+                 idempotency_key=idempotency_key, source_type=source_type,
+                 source_id=source_id)
 
 
 def history_for(db, kid_id, limit=50):
@@ -426,11 +410,11 @@ def stock_label(reward):
     if mode == "unlimited":
         return None
     if mode == "fixed":
-        return f"{int(reward.get('stock') or 0)} left"
-    per = {"daily": "a day", "weekly": "a week", "monthly": "a month"}.get(
-        reward.get("stock_period", "daily"), "a day")
-    who = "each" if reward.get("stock_scope", "child") == "child" else "to share"
-    return f"{int(reward.get('stock_limit') or 0)} {per} {who}"
+        return f"剩余 {int(reward.get('stock') or 0)} 件"
+    per = {"daily": "每天", "weekly": "每周", "monthly": "每月"}.get(
+        reward.get("stock_period", "daily"), "每天")
+    who = "每个孩子" if reward.get("stock_scope", "child") == "child" else "全家共享"
+    return f"{per} {int(reward.get('stock_limit') or 0)} 件，{who}"
 
 
 def annotate_rewards(db, rewards, kid, local_now):
@@ -445,112 +429,22 @@ def annotate_rewards(db, rewards, kid, local_now):
     return out
 
 
-def redeem(db, kid, reward, local_now=None):
-    """Take the points immediately and queue the reward for parent approval.
-    Returns (redemption, error_message)."""
-    cost = int(reward["cost"])
-    mode = stock_mode(reward)
-    local_now = local_now or datetime.now(timezone.utc)
-
-    # Claim a fixed item off the shelf first, conditionally, so two kids racing
-    # for the last one can't both win it.
-    if mode == "fixed":
-        claimed = db.rewards.find_one_and_update(
-            {"_id": reward["_id"], "stock": {"$gt": 0}}, {"$inc": {"stock": -1}}
-        )
-        if not claimed:
-            return None, "That one is sold out for now."
-    elif mode == "periodic":
-        if stock_left(db, reward, kid, local_now) <= 0:
-            return None, _periodic_sold_out(reward)
-
-    # Same trick for the points: only succeeds if the kid can actually afford
-    # it, so two fast taps can never overdraw the balance.
-    updated = db.users.find_one_and_update(
-        {"_id": kid["_id"], "role": "kid", "points": {"$gte": cost}},
-        {"$inc": {"points": -cost}},
-        return_document=True,
-    )
-    if not updated:
-        if mode == "fixed":  # couldn't pay after all — put it back on the shelf
-            db.rewards.update_one({"_id": reward["_id"]}, {"$inc": {"stock": 1}})
-        return None, "Not enough points for that yet — keep going!"
-
-    doc = {
-        "kid_id": kid["_id"],
-        "kid_name": kid["name"],
-        "kid_avatar": kid.get("avatar"),
-        "reward_id": reward["_id"],
-        "reward_title": reward["title"],
-        "reward_emoji": reward.get("emoji", "\U0001f381"),
-        "cost": cost,
-        "status": "pending",
-        "created_at": now(),
-        "decided_at": None,
-        "decided_by": None,
-    }
-    doc["_id"] = db.redemptions.insert_one(doc).inserted_id
-
-    # A counted allowance can't be claimed atomically, so verify afterwards and
-    # unwind if two purchases landed at once.
-    if mode == "periodic":
-        limit = int(reward.get("stock_limit") or 0)
-        if stock_used(db, reward, kid, local_now) > limit:
-            db.redemptions.delete_one({"_id": doc["_id"]})
-            db.users.update_one({"_id": kid["_id"]}, {"$inc": {"points": cost}})
-            return None, _periodic_sold_out(reward)
-
-    db.transactions.insert_one({
-        "kid_id": kid["_id"],
-        "kid_name": kid["name"],
-        "delta": -cost,
-        "reason": f"Bought {reward['title']}",
-        "kind": "redeem",
-        "actor_id": kid["_id"],
-        "actor_name": kid["name"],
-        "balance_after": updated.get("points", 0),
-        "created_at": now(),
-    })
-    return doc, None
+def redeem(db, kid, reward, local_now=None, idempotency_key=None):
+    from .services.redemptions import redeem as apply
+    return apply(db, kid, reward, local_now, idempotency_key)
 
 
 def _periodic_sold_out(reward):
-    per = {"daily": "today", "weekly": "this week", "monthly": "this month"}.get(
-        reward.get("stock_period", "daily"), "right now")
+    per = {"daily": "今天", "weekly": "本周", "monthly": "本月"}.get(
+        reward.get("stock_period", "daily"), "当前")
     if reward.get("stock_scope", "child") == "family":
-        return f"All gone {per} — someone got there first!"
-    return f"You've had all of those {per}. Try again soon!"
+        return f"{per}的库存已被兑换完。"
+    return f"你已用完{per}的兑换额度，请稍后再来。"
 
 
 def decide_redemption(db, redemption_id, approve, actor):
-    """Approve (hand it over) or reject (refund the points) a redemption."""
-    _id = oid(redemption_id)
-    if not _id:
-        return None
-
-    red = db.redemptions.find_one_and_update(
-        {"_id": _id, "status": "pending"},
-        {"$set": {
-            "status": "approved" if approve else "rejected",
-            "decided_at": now(),
-            "decided_by": actor.get("name"),
-        }},
-        return_document=True,
-    )
-    if not red:
-        return None
-
-    if not approve:
-        adjust_points(
-            db, red["kid_id"], red["cost"],
-            f"Refund for {red['reward_title']}", actor, kind="refund",
-        )
-        # Only fixed stock needs putting back; a periodic allowance frees up
-        # on its own because rejected redemptions stop being counted.
-        reward = db.rewards.find_one({"_id": red.get("reward_id")})
-        if reward and stock_mode(reward) == "fixed":
-            db.rewards.update_one({"_id": reward["_id"]}, {"$inc": {"stock": 1}})
-    return red
+    from .services.redemptions import decide_redemption as apply
+    return apply(db, redemption_id, approve, actor)
 
 
 def pending_redemptions(db):
@@ -676,11 +570,15 @@ def quests_for_kid(db, kid, local_now):
     return out
 
 
-def claim_quest(db, quest, kid, local_now):
+def claim_quest(db, quest, kid, local_now, idempotency_key=None):
     """Kid marks a quest as done; it waits for a parent to approve. A quest
     may allow several goes per period."""
     from pymongo.errors import DuplicateKeyError
 
+    if idempotency_key:
+        prior = db.quest_claims.find_one({"idempotency_key": idempotency_key})
+        if prior:
+            return prior, None
     key = period_key(quest.get("repeat", "daily"), local_now)
     limit = quest_times(quest)
     used = len(quest_claims_in_period(db, quest, kid, key))
@@ -691,8 +589,7 @@ def claim_quest(db, quest, kid, local_now):
     if subtasks:
         left = len(subtasks) - len(quest_progress(db, quest, kid, key))
         if left > 0:
-            return None, (f"{left} step{'s' if left > 1 else ''} still to do "
-                          "before you can finish this one.")
+          return None, f"还差 {left} 项步骤，完成后才能提交任务。"
 
     # Next free slot. Rejected claims keep their slot so the numbering stays
     # unique, which is what lets the index guard against a double tap.
@@ -712,6 +609,7 @@ def claim_quest(db, quest, kid, local_now):
         "points": int(quest["points"]),
         "period": key,
         "status": "pending",
+        "idempotency_key": idempotency_key,
         "created_at": now(),
         "decided_at": None,
         "decided_by": None,
@@ -725,41 +623,27 @@ def claim_quest(db, quest, kid, local_now):
                 clear_progress(db, quest, kid, key)
             return doc, None
         except DuplicateKeyError:
+            if idempotency_key:
+                prior = db.quest_claims.find_one({"idempotency_key": idempotency_key})
+                if prior:
+                    if subtasks:
+                        clear_progress(db, quest, kid, key)
+                    return prior, None
             continue
     return None, "That didn't go through — try again."
 
 
 def _quest_all_done(quest, limit):
-    per = {"daily": "today", "weekly": "this week"}.get(
-        quest.get("repeat", "daily"), "already")
+    per = {"daily": "今天", "weekly": "本周"}.get(
+        quest.get("repeat", "daily"), "此前")
     if limit == 1:
-        return "You've already sent that one in."
-    return f"You've done that {limit} times {per} — that's the lot!"
+        return "你已经提交过这个任务了。"
+    return f"这个任务{per}最多可完成 {limit} 次。"
 
 
 def decide_quest_claim(db, claim_id, approve, actor):
-    _id = oid(claim_id)
-    if not _id:
-        return None
-
-    claim = db.quest_claims.find_one_and_update(
-        {"_id": _id, "status": "pending"},
-        {"$set": {
-            "status": "approved" if approve else "rejected",
-            "decided_at": now(),
-            "decided_by": actor.get("name"),
-        }},
-        return_document=True,
-    )
-    if not claim:
-        return None
-
-    if approve:
-        adjust_points(
-            db, claim["kid_id"], claim["points"],
-            f"Quest: {claim['quest_title']}", actor, kind="quest",
-        )
-    return claim
+    from .services.quests import decide_quest_claim as apply
+    return apply(db, claim_id, approve, actor)
 
 
 def pending_claims(db):

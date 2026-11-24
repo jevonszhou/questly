@@ -8,7 +8,9 @@ from ..models import (THEMES, annotate_rewards, claim_quest, get_quest,
                       quests_for_kid, redeem, redemptions_for, set_kid_goal,
                       set_kid_theme, theme_for)
 from ..models import get_user, list_parents
-from ..notify import compose, mark_all_read, notify_many, recent
+from ..notify import compose, fanout, mark_all_read, notify_many, recent
+from ..services.pets import active_pet, customize_pet, pet_history, status_for
+from ..services.pets import DEFAULT_PET_RULES
 from .helpers import kid_required, local_now
 
 bp = Blueprint("kid", __name__, url_prefix="/me")
@@ -36,6 +38,7 @@ def home():
         goal_reached=bool(goal and balance >= goal["cost"]),
         affordable=[r for r in rewards if r["cost"] <= balance and not r["sold_out"]],
         history=history_for(db, kid["_id"], limit=8),
+        pet=active_pet(db, kid["_id"]),
     )
 
 
@@ -59,24 +62,25 @@ def buy(reward_id):
     db = get_db()
     reward = get_reward(db, reward_id)
     if not reward or not reward.get("active"):
-        flash("That reward isn't available.", "error")
+        flash("该奖励当前不可兑换。", "error")
         return redirect(url_for("kid.shop"))
 
-    _, error = redeem(db, g.user, reward, local_now())
+    _, error = redeem(db, g.user, reward, local_now(),
+                      request.form.get("idempotency_key"))
     if error:
         flash(error, "error")
     else:
         left = (get_user(db, g.user["_id"]) or {}).get("points", 0)
         notify_many(
             db, list_parents(db), "approval_waiting",
-            f"{reward.get('emoji', '')} {g.user['name']} bought {reward['title']}".strip(),
+            f"{reward.get('emoji', '')} {g.user['name']} 兑换了 {reward['title']}".strip(),
             compose(
-                f"Cost: {reward['cost']} points",
-                f"{g.user['name']} now has {left} points left",
+                f"花费：{reward['cost']} 积分",
+                f"{g.user['name']} 还剩 {left} 积分",
                 reward.get("description"),
-                "Hand it over, then mark it Given in Questly.",
+                "请交付奖励，然后在 Questly 中标记为已交付。",
             ))
-        session["celebrate"] = f"You got {reward['title']}! Ask a grown-up to hand it over."
+        session["celebrate"] = f"你兑换了 {reward['title']}！请让家长交付给你。"
     return redirect(url_for("kid.shop"))
 
 
@@ -86,15 +90,16 @@ def finish_quest(quest_id):
     db = get_db()
     quest = get_quest(db, quest_id)
     if not quest or not quest.get("active"):
-        flash("That quest has gone away.", "error")
+        flash("该任务已下架。", "error")
         return redirect(url_for("kid.home"))
 
     assigned = quest.get("assigned_to") or []
     if assigned and g.user["_id"] not in assigned:
-        flash("That quest isn't yours.", "error")
+        flash("该任务未分配给你。", "error")
         return redirect(url_for("kid.home"))
 
-    _, error = claim_quest(db, quest, g.user, local_now())
+    _, error = claim_quest(db, quest, g.user, local_now(),
+                           request.form.get("idempotency_key"))
     if error:
         flash(error, "warn")
     else:
@@ -118,15 +123,15 @@ def set_goal(reward_id):
     db = get_db()
     if reward_id == "clear":
         set_kid_goal(db, g.user["_id"], None)
-        flash("Back to showing whatever's closest.", "info")
+        flash("已恢复显示最近可兑换的奖励。", "info")
         return redirect(request.form.get("next") or url_for("kid.shop"))
 
     reward = get_reward(db, reward_id)
     if not reward or not reward.get("active"):
-        flash("That reward isn't available.", "error")
+        flash("该奖励当前不可兑换。", "error")
     else:
         set_kid_goal(db, g.user["_id"], reward["_id"])
-        flash(f"Saving up for {reward['emoji']} {reward['title']}!", "success")
+        flash(f"已设定存积分目标：{reward['emoji']} {reward['title']}。", "success")
     return redirect(request.form.get("next") or url_for("kid.shop"))
 
 
@@ -143,7 +148,7 @@ def choose_theme():
     if set_kid_theme(get_db(), g.user["_id"], request.form.get("theme", "")):
         session["celebrate"] = "Nice pick! Your colours are updated."
     else:
-        flash("That's not one of the themes.", "error")
+        flash("请选择有效的主题。", "error")
     return redirect(url_for("kid.theme"))
 
 
@@ -154,12 +159,12 @@ def tick_step(quest_id, subtask_id):
     db = get_db()
     quest = get_quest(db, quest_id)
     if not quest or not quest.get("active"):
-        flash("That quest has gone away.", "error")
+        flash("该任务已下架。", "error")
         return redirect(url_for("kid.home"))
 
     assigned = quest.get("assigned_to") or []
     if assigned and g.user["_id"] not in assigned:
-        flash("That quest isn't yours.", "error")
+        flash("该任务未分配给你。", "error")
         return redirect(url_for("kid.home"))
 
     key = period_key(quest.get("repeat", "daily"), local_now())
@@ -186,3 +191,28 @@ def stuff():
         history=history_for(db, g.user["_id"], limit=100),
         redemptions=redemptions_for(db, g.user["_id"], limit=50),
     )
+
+
+@bp.get("/pet")
+@kid_required
+def pet():
+    db = get_db()
+    companion = active_pet(db, g.user["_id"])
+    if companion:
+        settings = db.family_settings.find_one({"_id": "family"}) or {}
+        companion["status"] = status_for(
+            companion.get("hp", 0),
+            settings.get("pet_rules", DEFAULT_PET_RULES),
+        )
+    return render_template("kid/pet.html", kid=g.user, pet=companion,
+                           history=pet_history(db, g.user["_id"], limit=50))
+
+
+@bp.post("/pet/customize")
+@kid_required
+def customize_companion():
+    ok = customize_pet(get_db(), g.user, request.form.get("name", ""),
+                       request.form.get("species", "cat"))
+    flash("宠物外观已更新。" if ok else "还没有可修改的宠物。",
+          "success" if ok else "error")
+    return redirect(url_for("kid.pet"))

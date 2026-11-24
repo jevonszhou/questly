@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}{{ kid.name }}的宠物 · {{ app_name }}{% endblock %}
+{% block content %}
+<a class="backlink" href="{{ url_for('parent.kid_detail', kid_id=kid._id) }}">&larr; 返回 {{ kid.name }}</a>
+<section class="card pet-card">
+  {% if pet %}
+    <div class="pet-card__face">{{ {'cat':'🐱','dog':'🐶','rabbit':'🐰','dinosaur':'🦖'}.get(pet.species, '🐾') }}</div>
+    <h1>{{ pet.name }}</h1><p>{{ {'healthy':'健康','good':'良好','care':'需要照顾','weak':'虚弱','recover':'需要恢复'}.get(pet.status, '健康') }} · {{ pet.hp }}/{{ pet.max_hp }} HP</p>
+    <div class="bar pet-card__bar"><div class="bar__fill" style="width: {{ (pet.hp / pet.max_hp * 100) | round(0, 'floor') }}%"></div></div>
+    <p>宠物不会死亡。HP 为 0 时进入需要恢复状态，之后可通过正向行为恢复。</p>
+    <form method="post" class="formgrid pet-adjust">
+      {{ csrf_field() }}
+      <input type="hidden" name="action" value="adjust">
+      <label class="field"><span>生命值变化</span><input type="number" name="delta" min="-{{ pet.max_hp }}" max="{{ pet.max_hp }}" required></label>
+      <label class="field field--grow"><span>调整原因</span><input name="reason" maxlength="240" required></label>
+      <button class="btn btn--primary" type="submit" data-confirm="确认保存本次生命值修正？">修正 HP</button>
+    </form>
+  {% else %}
+    <div class="empty"><div class="empty__emoji">🐾</div><h1>尚未领养宠物</h1></div>
+  {% endif %}
+</section>
+
+<section class="card card--form">
+  <h2 class="card__title">领养或更换宠物</h2>
+  <p class="card__note">更换后会保留旧宠物和全部生命值记录。</p>
+  <form method="post" class="formgrid">
+    {{ csrf_field() }}<input type="hidden" name="action" value="adopt">
+    <label class="field field--grow"><span>宠物名字</span><input name="name" maxlength="40" required></label>
+    <label class="field"><span>种类</span><select name="species"><option value="cat">猫咪</option><option value="dog">小狗</option><option value="rabbit">兔子</option><option value="dinosaur">恐龙</option></select></label>
+    <button class="btn btn--primary" type="submit" data-confirm="领养新宠物后，当前宠物会归档。确认继续？">领养</button>
+  </form>
+</section>
+
+{% if pets %}
+<section class="section"><div class="section__head"><h2>宠物档案</h2></div>
+  <div class="card feed">{% for old in pets %}<div class="feed__row">
+    <span class="feed__emoji">{{ {'cat':'🐱','dog':'🐶','rabbit':'🐰','dinosaur':'🦖'}.get(old.species, '🐾') }}</span>
+    <div class="feed__text"><p>{{ old.name }}{% if old.is_active %} · 当前宠物{% endif %}</p>
+      <span class="feed__when">{{ old.hp }}/{{ old.max_hp }} HP · {{ old.created_at | datetime }}</span></div>
+  </div>{% endfor %}</div>
+</section>
+{% endif %}
+
+<section class="section"><div class="section__head"><h2>生命值历史</h2></div>
+  <div class="card feed">{% for event in history %}<div class="feed__row">
+    <span class="feed__delta {{ 'is-up' if event.applied_hp_delta > 0 else 'is-down' }}">{{ event.applied_hp_delta | signed }}</span>
+    <div class="feed__text"><p>{{ event.reason or '宠物生命值变化' }}</p>
+      <span class="feed__when">{{ event.created_at | datetime }} · {{ event.hp_before }} → {{ event.hp_after }} HP · {{ event.actor_name or '系统' }}</span></div>
+  </div>{% else %}<div class="empty"><p>还没有生命值记录。</p></div>{% endfor %}</div>
+</section>
+{% endblock %}

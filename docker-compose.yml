@@ -3,7 +3,7 @@ services:
     image: mongo:7
     container_name: questly-mongo
     restart: unless-stopped
-    command: ["--quiet", "--logpath", "/dev/null"]
+    command: ["--quiet", "--logpath", "/dev/null", "--replSet", "rs0", "--bind_ip_all"]
     volumes:
       - mongo-data:/data/db
     healthcheck:
@@ -20,15 +20,25 @@ services:
     ports:
       - "${PORT:-37000}:8000"
     environment:
-      SECRET_KEY: "${SECRET_KEY:-dev-only-change-me}"
+      SECRET_KEY: "${SECRET_KEY:?Set SECRET_KEY in .env before starting Questly}"
       # Defaults to the bundled mongo service; override in .env to point
       # at a MongoDB container you run yourself.
-      MONGO_URI: "${MONGO_URI:-mongodb://mongo:27017/}"
+      MONGO_URI: "${MONGO_URI:-mongodb://mongo:27017/?replicaSet=rs0}"
       MONGO_DB: "${MONGO_DB:-questly}"
-      TZ: "${TZ:-Europe/London}"
+      TZ: "${TZ:-Asia/Shanghai}"
+    depends_on:
+      mongo-init:
+        condition: service_completed_successfully
+
+  mongo-init:
+    image: mongo:7
+    restart: "no"
     depends_on:
       mongo:
         condition: service_healthy
+    volumes:
+      - ./scripts/init-replica-set.js:/scripts/init-replica-set.js:ro
+    entrypoint: ["mongosh", "mongodb://mongo:27017/admin", "--quiet", "/scripts/init-replica-set.js"]
 
 volumes:
   mongo-data:

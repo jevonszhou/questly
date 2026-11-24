@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}宠物积分规则 · {{ app_name }}{% endblock %}
+{% block content %}
+<a class="backlink" href="{{ url_for('parent.settings') }}">&larr; 家庭设置</a>
+<section class="card card--form">
+  <h1 class="card__title">宠物生命值规则</h1>
+  <p class="card__note">默认 1 积分对应 1 HP。兑换奖励和退款不会改变 HP；生命值到达上下限时会自动截断并记录实际变化。</p>
+  <form method="post" class="formgrid">
+    {{ csrf_field() }}
+    <label class="field field--full"><span><input type="checkbox" name="enabled" value="1" {{ 'checked' if rules.enabled }}> 启用积分与宠物 HP 联动</span></label>
+    <label class="field"><span>HP 上限</span><input type="number" name="max_hp" min="1" max="10000" value="{{ rules.max_hp }}" required></label>
+    <label class="field"><span>每笔积分比例：分子</span><input type="number" name="ratio_numerator" min="0" max="1000" value="{{ rules.ratio_numerator }}" required></label>
+    <label class="field"><span>每笔积分比例：分母</span><input type="number" name="ratio_denominator" min="1" max="1000" value="{{ rules.ratio_denominator }}" required></label>
+    <fieldset class="field field--full"><legend>参与联动的积分类型</legend>
+      {% for value, label in [('quest','任务奖励'),('parent_award','家长奖励'),('parent_deduct','家长扣分')] %}
+      <label class="checkrow"><input type="checkbox" name="apply_kinds" value="{{ value }}" {{ 'checked' if value in rules.apply_kinds }}>{{ label }}</label>
+      {% endfor %}
+    </fieldset>
+    <label class="field field--full"><span>调整原因（必填）</span><input name="reason" maxlength="240" required></label>
+    <button class="btn btn--primary" type="submit" data-confirm="确认更新家庭宠物规则？保存后所有新积分交易将使用这些规则。">保存规则</button>
+  </form>
+</section>
+{% endblock %}

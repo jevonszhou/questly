@@ -43,6 +43,17 @@ def favicon():
 def healthz():
     try:
         get_db().command("ping")
-    except Exception as exc:  # pragma: no cover - surfaced to docker healthcheck
-        return jsonify(status="degraded", mongo=str(exc)), 503
+    except Exception:  # pragma: no cover - never expose database details
+        return jsonify(status="degraded"), 503
     return jsonify(status="ok")
+
+
+@bp.get("/service-worker.js")
+def service_worker():
+    response = send_from_directory(
+        os.path.join(current_app.root_path, "static"), "service-worker.js",
+        mimetype="application/javascript",
+    )
+    response.headers["Cache-Control"] = "no-cache"
+    response.headers["Service-Worker-Allowed"] = "/"
+    return response

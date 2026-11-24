@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Grown-up login &middot; {{ app_name }}{% endblock %}
+{% block title %}家长登录 · {{ app_name }}{% endblock %}
 {% block body_class %}gate{% endblock %}
 {% block chrome %}{% endblock %}
 
@@ -7,38 +7,38 @@
 <div class="gate__wrap gate__wrap--narrow">
   <div class="gate__logo">
     <span class="gate__face">&#129485;</span>
-    <h1 class="gate__title">Grown-ups</h1>
-    <p class="gate__sub">Log in to award points and run the shop.</p>
+    <h1 class="gate__title">家长登录</h1>
+    <p class="gate__sub">管理家庭、任务、积分和奖励商城。</p>
   </div>
 
   <form class="card card--form" method="post">
     {{ csrf_field() }}
     <label class="field">
-      <span>Email</span>
+      <span>邮箱</span>
       <input name="email" type="email" required autocomplete="username"
              value="{{ remembered }}" {{ '' if remembered else 'autofocus' }}>
     </label>
     <label class="field">
-      <span>Password</span>
+      <span>密码</span>
       <input name="password" type="password" required autocomplete="current-password"
              {{ 'autofocus' if remembered }}>
     </label>
 
     <label class="checkline">
       <input type="checkbox" name="remember" value="1" checked>
-      <span>Keep me signed in on this device</span>
+      <span>在此设备上保持登录</span>
     </label>
 
-    <button class="btn btn--primary btn--block" type="submit">Log in</button>
+    <button class="btn btn--primary btn--block" type="submit">登录</button>
   </form>
 
   {% if remembered %}
     <form method="post" action="{{ url_for('auth.forget_me') }}">
       {{ csrf_field() }}
-      <button class="linkbtn" type="submit">Not {{ remembered }}? Forget this email</button>
+      <button class="linkbtn" type="submit">不是 {{ remembered }}？清除已记住的邮箱</button>
     </form>
   {% endif %}
 
-  <a class="gate__back" href="{{ url_for('public.who') }}">&larr; Back to who's here</a>
+  <a class="gate__back" href="{{ url_for('public.who') }}">&larr; 返回成员选择</a>
 </div>
 {% endblock %}

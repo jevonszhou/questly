@@ -9,15 +9,15 @@
   <section class="card notice">
     <span class="notice__ico">&#9203;</span>
     <div>
-      <strong>Waiting for a grown-up</strong>
+      <strong>等待家长审批</strong>
       <p>{% for p in pending %}{{ p.reward_emoji }} {{ p.reward_title }}{{ ', ' if not loop.last }}{% endfor %}</p>
     </div>
   </section>
 {% endif %}
 
 <div class="section__head section__head--page">
-  <h2>The Shop</h2>
-  <span class="section__hint">You have {{ kid.points }} &#11088;</span>
+  <h2>奖励商城</h2>
+  <span class="section__hint">你有 {{ kid.points }} &#11088;</span>
 </div>
 
 <div class="grid-rewards">
@@ -25,7 +25,7 @@
     {% set afford = kid.points >= r.cost %}
     {% set is_goal = goal_id and r._id == goal_id %}
     <article class="reward {{ 'is-locked' if not afford or r.sold_out }} {{ 'is-goal' if is_goal }}">
-      {% if is_goal %}<span class="reward__flag">Saving for this</span>{% endif %}
+      {% if is_goal %}<span class="reward__flag">正在为此存积分</span>{% endif %}
       <div class="reward__emoji">{{ r.emoji }}</div>
       <h3 class="reward__title">{{ r.title }}</h3>
       {% if r.description %}<p class="reward__desc">{{ r.description }}</p>{% endif %}
@@ -33,15 +33,15 @@
       <div class="reward__foot">
         <span class="price">{{ r.cost }} &#11088;</span>
         {% if r.sold_out %}
-          <span class="stamp stamp--out">All gone</span>
+          <span class="stamp stamp--out">已兑完</span>
         {% elif afford %}
           <form method="post" action="{{ url_for('kid.buy', reward_id=r._id) }}">
-            {{ csrf_field() }}
+            {{ csrf_field() }}{{ idempotency_field() }}
             <button class="btn btn--buy" type="submit"
-                    data-confirm="Spend {{ r.cost }} points on {{ r.title }}?">Buy</button>
+                    data-confirm="确定花费 {{ r.cost }} 积分兑换「{{ r.title }}」吗？">兑换</button>
           </form>
         {% else %}
-          <span class="stamp stamp--lock">{{ r.cost - kid.points }} more</span>
+          <span class="stamp stamp--lock">还差 {{ r.cost - kid.points }} 积分</span>
         {% endif %}
       </div>
       {% if not afford and not r.sold_out %}
@@ -50,7 +50,7 @@
           {{ csrf_field() }}
           <input type="hidden" name="next" value="{{ url_for('kid.shop') }}">
           <button class="linkbtn" type="submit">
-            {{ 'Stop saving for this' if is_goal else 'Save up for this' }}
+            {{ '取消存积分目标' if is_goal else '设为存积分目标' }}
           </button>
         </form>
       {% endif %}
@@ -58,7 +58,7 @@
   {% else %}
     <div class="empty empty--big">
       <div class="empty__emoji">&#128230;</div>
-      <p>The shop is empty. Ask a grown-up to add some rewards!</p>
+      <p>商城还没有奖励，请让家长添加一些奖励。</p>
     </div>
   {% endfor %}
 </div>

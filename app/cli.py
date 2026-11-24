@@ -5,12 +5,14 @@ from flask.cli import with_appcontext
 
 from .db import ensure_indexes, get_db
 from .models import adjust_points, create_kid, create_parent, list_kids
+from .services.pets import ensure_pet
 
 
 def register(app):
     app.cli.add_command(init_db_command)
     app.cli.add_command(create_parent_command)
     app.cli.add_command(seed_demo_command)
+    app.cli.add_command(migrate_v2_command)
 
 
 @click.command("init-db")
@@ -19,6 +21,38 @@ def init_db_command():
     """Create the indexes."""
     ensure_indexes(get_db())
     click.echo("Indexes ready.")
+
+
+@click.command("migrate-v2")
+@with_appcontext
+def migrate_v2_command():
+    """Idempotently add locale, pet, and lifetime fields to an existing DB."""
+    db = get_db()
+    ensure_indexes(db)
+    kids = list(db.users.find({"role": "kid"}))
+    parents = list(db.users.find({"role": "parent"}))
+    for parent in parents:
+        changes = {"status": "active", "auth_version": 0, "locale": "zh_CN"}
+        missing = {key: value for key, value in changes.items() if key not in parent}
+        if missing:
+            db.users.update_one({"_id": parent["_id"]}, {"$set": missing})
+    for kid in kids:
+        changes = {"status": "active", "auth_version": 0, "locale": "zh_CN",
+                   "points": int(kid.get("points", 0))}
+        missing = {key: value for key, value in changes.items() if key not in kid}
+        if "lifetime_points" not in kid:
+            rows = db.transactions.find(
+                {"kid_id": kid["_id"], "delta": {"$gt": 0},
+                 "kind": {"$in": ["award", "quest", "parent_award"]}},
+                {"delta": 1},
+            )
+            earned = sum(int(row.get("delta", 0)) for row in rows)
+            missing["lifetime_points"] = earned if earned else int(kid.get("points", 0))
+        if missing:
+            db.users.update_one({"_id": kid["_id"]}, {"$set": missing})
+        migrated = db.users.find_one({"_id": kid["_id"]})
+        ensure_pet(db, migrated)
+    click.echo(f"Migration complete: {len(parents)} parent(s), {len(kids)} child account(s).")
 
 
 @click.command("create-parent")

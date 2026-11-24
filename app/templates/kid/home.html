@@ -6,6 +6,17 @@
 
 {% block content %}
 
+{% if pet %}
+  <a class="card pet-summary" href="{{ url_for('kid.pet') }}">
+    <span class="pet-face">{{ {'cat':'🐱','dog':'🐶','rabbit':'🐰','dinosaur':'🦖'}.get(pet.species, '🐾') }}</span>
+    <div class="pet-summary__text"><strong>{{ pet.name }}</strong>
+      <span>{{ {'healthy':'健康','good':'良好','care':'需要照顾','weak':'虚弱','recover':'需要恢复'}.get(pet.status, '健康') }} · {{ pet.hp }}/{{ pet.max_hp }} HP</span>
+      <div class="bar"><div class="bar__fill" style="width: {{ (pet.hp / pet.max_hp * 100) | round(0, 'floor') }}%"></div></div>
+    </div>
+    <span aria-hidden="true">›</span>
+  </a>
+{% endif %}
+
 {% if goal %}
   {% set pct = (kid.points / goal.cost * 100) | round(0, 'floor') if goal.cost else 100 %}
   <section class="card goal {{ 'goal--ready' if goal_reached }}">
@@ -18,7 +29,7 @@
       {% if goal_reached %}
         <a class="btn btn--buy btn--sm" href="{{ url_for('kid.shop') }}">Go get it!</a>
       {% else %}
-        <span class="goal__togo">{{ goal.cost - kid.points }} to go</span>
+        <span class="goal__togo">还差 {{ goal.cost - kid.points }} 积分</span>
       {% endif %}
     </div>
     <div class="bar"><div class="bar__fill" style="width: {{ [pct, 100] | min }}%"></div></div>
@@ -73,8 +84,8 @@
           <span class="stamp stamp--steps">{{ q.steps_left }} step{{ '' if q.steps_left == 1 else 's' }} left</span>
         {% elif q.state == 'open' %}
           <form method="post" action="{{ url_for('kid.finish_quest', quest_id=q._id) }}">
-            {{ csrf_field() }}
-            <button class="btn btn--go" type="submit">Done!</button>
+            {{ csrf_field() }}{{ idempotency_field() }}
+            <button class="btn btn--go" type="submit">申请完成</button>
           </form>
         {% elif q.state == 'pending' %}
           <span class="stamp stamp--wait">Waiting&nbsp;&#9203;</span>

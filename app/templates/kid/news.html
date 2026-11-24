@@ -1,11 +1,11 @@
 {% extends 'base.html' %}
-{% block title %}News &middot; {{ app_name }}{% endblock %}
+{% block title %}通知 · {{ app_name }}{% endblock %}
 {% block body_class %}kidview{% endblock %}
 {% block chrome %}{% include 'partials/kidhead.html' %}{% endblock %}
 {% block bottomnav %}{% include 'partials/kidnav.html' %}{% endblock %}
 
 {% block content %}
-<div class="section__head section__head--page"><h2>What's new</h2></div>
+<div class="section__head section__head--page"><h2>最新消息</h2></div>
 
 <div class="card feed">
   {% for n in items %}
@@ -19,7 +19,7 @@
   {% else %}
     <div class="empty">
       <div class="empty__emoji">&#128276;</div>
-      <p>Nothing yet. We'll tell you when something happens!</p>
+      <p>暂时没有新消息，有新动态时会在这里告诉你！</p>
     </div>
   {% endfor %}
 </div>

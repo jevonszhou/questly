@@ -2,6 +2,13 @@
 (function () {
   "use strict";
 
+  if ("serviceWorker" in navigator &&
+      (location.protocol === "https:" || location.hostname === "localhost")) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("/service-worker.js", { scope: "/" }).catch(function () {});
+    });
+  }
+
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   /* ---------------------------------------------------------------- confirm

@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+{% block title %}家庭设置 · {{ app_name }}{% endblock %}
+{% block content %}
+<section class="card card--form">
+  <h1 class="card__title">家庭设置</h1>
+  <form method="post" class="formgrid">
+    {{ csrf_field() }}
+    <label class="field field--full"><span>家庭名称</span><input name="family_name" maxlength="80" value="{{ settings.family_name }}" required></label>
+    <label class="field"><span>默认语言</span><select name="default_locale"><option value="zh_CN" selected>简体中文</option></select></label>
+    <label class="field"><span>时区</span><input name="timezone" value="{{ settings.timezone }}" required></label>
+    <button class="btn btn--primary" type="submit" data-confirm="确认保存家庭名称、语言和时区？">保存设置</button>
+  </form>
+</section>
+<section class="card card--form">
+  <h2 class="card__title">宠物与积分</h2>
+  <p class="card__note">设置 HP 上限、积分换算比例及参与联动的交易类型。</p>
+  <a class="btn btn--primary" href="{{ url_for('parent.pet_rules') }}">管理宠物规则</a>
+</section>
+{% endblock %}

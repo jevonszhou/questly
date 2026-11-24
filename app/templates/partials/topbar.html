@@ -7,26 +7,27 @@
     </a>
 
     <nav class="topnav">
-      <a href="{{ url_for('parent.dashboard') }}" class="{{ 'is-active' if request.endpoint == 'parent.dashboard' }}">Home</a>
+      <a href="{{ url_for('parent.dashboard') }}" class="{{ 'is-active' if request.endpoint == 'parent.dashboard' }}">首页</a>
       <a href="{{ url_for('parent.approvals') }}" class="{{ 'is-active' if request.endpoint == 'parent.approvals' }}">
-        Approvals
+        待审批
         {% if approvals_waiting %}<span class="pip">{{ approvals_waiting }}</span>{% endif %}
       </a>
-      <a href="{{ url_for('parent.rewards') }}" class="{{ 'is-active' if request.endpoint == 'parent.rewards' }}">Shop</a>
-      <a href="{{ url_for('parent.quests') }}" class="{{ 'is-active' if request.endpoint == 'parent.quests' }}">Quests</a>
-      <a href="{{ url_for('parent.family') }}" class="{{ 'is-active' if request.endpoint == 'parent.family' }}">Family</a>
+      <a href="{{ url_for('parent.rewards') }}" class="{{ 'is-active' if request.endpoint == 'parent.rewards' }}">奖励商城</a>
+      <a href="{{ url_for('parent.quests') }}" class="{{ 'is-active' if request.endpoint == 'parent.quests' }}">任务</a>
+      <a href="{{ url_for('parent.family') }}" class="{{ 'is-active' if request.endpoint == 'parent.family' }}">家庭成员</a>
+      <a href="{{ url_for('parent.settings') }}" class="{{ 'is-active' if request.endpoint in ['parent.settings', 'parent.pet_rules'] }}">设置</a>
     </nav>
 
     <a class="bell {{ 'has-new' if unread_news }}" href="{{ url_for('parent.news') }}"
-       title="Notifications" aria-label="Notifications">
+       title="通知" aria-label="通知">
       <span class="bell__ico">&#128276;</span>
       {% if unread_news %}<span class="pip">{{ unread_news }}</span>{% endif %}
     </a>
 
     <form method="post" action="{{ url_for('auth.logout') }}" class="topbar__out">
       {{ csrf_field() }}
-      <a class="whoami" href="{{ url_for('parent.account') }}" title="Your account"><span class="whoami__face">{{ current_user.avatar or '🧑' }}</span><span class="whoami__name">{{ current_user.name }}</span></a>
-      <button class="btn btn--ghost btn--sm" type="submit">Log out</button>
+      <a class="whoami" href="{{ url_for('parent.account') }}" title="我的账户"><span class="whoami__face">{{ current_user.avatar or '🧑' }}</span><span class="whoami__name">{{ current_user.name }}</span></a>
+      <button class="btn btn--ghost btn--sm" type="submit">退出</button>
     </form>
   </div>
 </header>

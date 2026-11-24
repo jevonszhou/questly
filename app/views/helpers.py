@@ -11,7 +11,7 @@ def parent_required(view):
         if not g.user:
             return redirect(url_for("auth.parent_login"))
         if g.user["role"] != "parent":
-            flash("That's a grown-up page!", "warn")
+            flash("这是家长页面，请使用家长账户登录。", "warn")
             return redirect(url_for("kid.home"))
         return view(*args, **kwargs)
     return wrapped

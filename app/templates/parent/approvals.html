@@ -1,44 +1,44 @@
 {% extends 'base.html' %}
-{% block title %}Approvals &middot; {{ app_name }}{% endblock %}
+{% block title %}待审批 · {{ app_name }}{% endblock %}
 
 {% block content %}
 <div class="section__head section__head--page">
-  <h2>Approvals</h2>
-  <span class="section__hint">{{ (redemptions | length) + (claims | length) }} waiting</span>
+  <h2>待审批</h2>
+  <span class="section__hint">{{ (redemptions | length) + (claims | length) }} 项待处理</span>
 </div>
 
 <section class="section">
-  <div class="section__head"><h2>Rewards to hand over</h2></div>
+  <div class="section__head"><h2>待交付奖励</h2></div>
   <div class="card feed">
     {% for r in redemptions %}
       <div class="feed__row">
         <span class="feed__emoji">{{ r.reward_emoji }}</span>
         <div class="feed__text">
-          <p><strong>{{ r.kid_name }}</strong> bought {{ r.reward_title }}</p>
-          <span class="feed__when">{{ r.created_at | datetime }} &middot; {{ r.cost }} &#11088; already deducted</span>
+          <p><strong>{{ r.kid_name }}</strong>兑换了{{ r.reward_title }}</p>
+          <span class="feed__when">{{ r.created_at | datetime }} · {{ r.cost }} &#11088;（已扣除）</span>
         </div>
         {% include 'parent/_decide_redemption.html' %}
       </div>
     {% else %}
-      <div class="empty"><p>Nothing to hand over. &#127881;</p></div>
+      <div class="empty"><p>没有待交付的奖励。&#127881;</p></div>
     {% endfor %}
   </div>
 </section>
 
 <section class="section">
-  <div class="section__head"><h2>Quests to check</h2></div>
+  <div class="section__head"><h2>待审核任务</h2></div>
   <div class="card feed">
     {% for c in claims %}
       <div class="feed__row">
         <span class="feed__emoji">{{ c.quest_emoji }}</span>
         <div class="feed__text">
-          <p><strong>{{ c.kid_name }}</strong> says they finished {{ c.quest_title }}</p>
-          <span class="feed__when">{{ c.created_at | datetime }} &middot; worth +{{ c.points }} &#11088;</span>
+          <p><strong>{{ c.kid_name }}</strong>申请完成「{{ c.quest_title }}」</p>
+          <span class="feed__when">{{ c.created_at | datetime }} · 奖励 +{{ c.points }} &#11088;</span>
         </div>
         {% include 'parent/_decide_claim.html' %}
       </div>
     {% else %}
-      <div class="empty"><p>All caught up. &#128077;</p></div>
+      <div class="empty"><p>当前没有待审核事项。&#128077;</p></div>
     {% endfor %}
   </div>
 </section>

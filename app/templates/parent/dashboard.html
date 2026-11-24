@@ -3,10 +3,10 @@
 
 {% block content %}
 <div class="section__head section__head--page">
-  <h2>Award points</h2>
+  <h2>奖励积分</h2>
   {% if approvals_waiting %}
     <a class="btn btn--warn btn--sm" href="{{ url_for('parent.approvals') }}">
-      {{ approvals_waiting }} waiting for you
+      {{ approvals_waiting }} 项待处理
     </a>
   {% endif %}
 </div>
@@ -24,22 +24,22 @@
       </a>
 
       <form class="award" method="post" action="{{ url_for('parent.award') }}">
-        {{ csrf_field() }}
+        {{ csrf_field() }}{{ idempotency_field() }}
         <input type="hidden" name="kid_id" value="{{ kid._id }}">
         <input type="hidden" name="next" value="{{ url_for('parent.dashboard') }}">
-        <input class="award__reason" name="reason" maxlength="120"
-               placeholder="What for? (optional)">
+        <input class="award__reason" name="reason" maxlength="240" required
+               placeholder="原因（必填）">
         <div class="award__row">
           {% for n in quick %}
             <button class="btn btn--pill" type="submit" name="amount" value="{{ n }}">+{{ n }}</button>
           {% endfor %}
         </div>
         <details class="award__more">
-          <summary>Other amount</summary>
+          <summary>自定义金额</summary>
           <div class="award__custom">
             <input type="number" name="amount" min="1" max="1000" placeholder="0" inputmode="numeric">
-            <button class="btn btn--sm btn--primary" type="submit">Give</button>
-            <button class="btn btn--sm btn--danger" type="submit" name="negate" value="1">Take away</button>
+            <button class="btn btn--sm btn--primary" type="submit">奖励</button>
+            <button class="btn btn--sm btn--danger" type="submit" name="negate" value="1">扣除</button>
           </div>
         </details>
       </form>
@@ -47,8 +47,8 @@
   {% else %}
     <div class="empty empty--big">
       <div class="empty__emoji">&#128118;</div>
-      <p>No kids yet.</p>
-      <a class="btn btn--primary" href="{{ url_for('parent.family') }}">Add your first child</a>
+      <p>还没有添加孩子。</p>
+      <a class="btn btn--primary" href="{{ url_for('parent.family') }}">添加第一个孩子</a>
     </div>
   {% endfor %}
 </div>
@@ -56,8 +56,8 @@
 {% if redemptions or claims %}
 <section class="section">
   <div class="section__head">
-    <h2>Waiting for approval</h2>
-    <a class="section__link" href="{{ url_for('parent.approvals') }}">Open approvals</a>
+    <h2>等待审批</h2>
+    <a class="section__link" href="{{ url_for('parent.approvals') }}">查看待审批</a>
   </div>
   <div class="card feed">
     {% for r in redemptions[:4] %}
@@ -85,18 +85,18 @@
 {% endif %}
 
 <section class="section">
-  <div class="section__head"><h2>Recent activity</h2></div>
+  <div class="section__head"><h2>最近积分变动</h2></div>
   <div class="card feed">
     {% for t in activity %}
       <div class="feed__row">
         <span class="feed__delta {{ 'is-up' if t.delta > 0 else 'is-down' }}">{{ t.delta | signed }}</span>
         <div class="feed__text">
           <p><strong>{{ t.kid_name }}</strong> &middot; {{ t.reason }}</p>
-          <span class="feed__when">{{ t.created_at | ago }} &middot; by {{ t.actor_name }}</span>
+          <span class="feed__when">{{ t.created_at | ago }} &middot; 操作人：{{ t.actor_name }}</span>
         </div>
       </div>
     {% else %}
-      <div class="empty"><p>Nothing has happened yet.</p></div>
+      <div class="empty"><p>暂时还没有记录。</p></div>
     {% endfor %}
   </div>
 </section>

@@ -242,3 +242,12 @@ First release.
 [1.0.2]: https://github.com/mahansford/questly/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/mahansford/questly/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/mahansford/questly/releases/tag/v1.0.0
+# 1.6.0 — 2026-11-23
+
+- Added transactional points ledger updates with request idempotency, balance snapshots and configured pet HP effects.
+- Made quest approval and reward debit/refund atomic across MongoDB collections.
+- Added pet profiles, HP history, family pet rules, audit records and an idempotent database migration.
+- Switched Compose MongoDB to a single-member replica set required for transactions.
+- Added Chinese family settings, Shanghai timezone defaults, PWA static-only caching, and backup/restore guidance.
+- Kept old transaction documents intact during migration; historical records do not create retroactive pet HP events.
+

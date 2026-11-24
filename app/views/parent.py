@@ -1,5 +1,5 @@
 from flask import (Blueprint, flash, g, jsonify, redirect, render_template,
-                   request, url_for)
+                   request, url_for, current_app)
 
 from ..db import get_db
 from ..models import (AVATARS, COLORS, PARENT_AVATARS, REPEAT_CHOICES,
@@ -16,9 +16,12 @@ from ..models import (AVATARS, COLORS, PARENT_AVATARS, REPEAT_CHOICES,
                       update_parent)
 from ..notify import (CHANNELS, channel_summary, compose, deliver,
                       signal_groups,
-                      events_for, mark_all_read, notify, notify_many,
+                      events_for, fanout, mark_all_read, notify, notify_many,
                       recent)
 from .helpers import as_int, check_goal_reached, parent_required, safe_next
+from ..services.pets import (DEFAULT_PET_RULES, active_pet, adjust_pet_hp,
+                             adopt_pet, pet_history, status_for,
+                             update_pet_rules)
 
 bp = Blueprint("parent", __name__, url_prefix="/parent")
 
@@ -49,31 +52,42 @@ def dashboard():
 def award():
     db = get_db()
     kid_id = request.form.get("kid_id", "")
-    amount = as_int(request.form.get("amount"), default=0, low=-1000, high=1000)
-    reason = request.form.get("reason", "").strip()[:120]
+    try:
+        amount = abs(int(request.form.get("amount", "0").strip()))
+    except (TypeError, ValueError):
+        amount = 0
+    reason = request.form.get("reason", "").strip()[:240]
 
     # The "Take away" button reuses the same amount box.
     if request.form.get("negate"):
         amount = -abs(amount)
 
-    if amount == 0:
-        flash("Pick an amount first.", "warn")
+    if amount < 1 or amount > 1000:
+        flash("金额必须为 1 至 1000 的整数。", "warn")
+        return redirect(safe_next(url_for("parent.dashboard")))
+    if not reason:
+        flash("请填写积分变动原因。", "warn")
         return redirect(safe_next(url_for("parent.dashboard")))
 
-    kid, _ = adjust_points(db, kid_id, amount, reason, g.user,
-                           kind="award" if amount > 0 else "deduct")
+    kind = "parent_award" if amount > 0 else "parent_deduct"
+    kid, entry = adjust_points(
+        db, kid_id, amount, reason, g.user, kind=kind,
+        idempotency_key=request.form.get("idempotency_key"),
+    )
     if not kid:
-        flash("Couldn't find that child.", "error")
+        target = get_user(db, kid_id)
+        if amount < 0 and target and target.get("role") == "kid":
+            flash(f"积分不足。当前余额为 {target.get('points', 0)}，不能扣除 {abs(amount)}。", "error")
+        else:
+            flash("找不到这个孩子。", "error")
     else:
         if amount > 0:
-            notify(db, kid, "points_awarded", f"⭐ You got {amount} points!",
-                   compose(reason and f"For: {reason}",
-                           f"From {g.user['name']}",
-                           f"You now have {kid.get('points', 0)} points"))
+            fanout(db, kid, "points_awarded", f"⭐ 获得 {amount} 积分",
+                   compose(reason, f"来自：{g.user['name']}",
+                           f"当前余额：{kid.get('points', 0)}"))
             check_goal_reached(db, kid["_id"])
-        verb = "Gave" if amount > 0 else "Took"
-        flash(f"{verb} {abs(amount)} points {'to' if amount > 0 else 'from'} {kid['name']}.",
-              "success")
+        verb = "奖励" if amount > 0 else "扣除"
+        flash(f"已为 {kid['name']}{verb} {abs(amount)} 积分。", "success")
     return redirect(safe_next(url_for("parent.dashboard")))
 
 
@@ -92,7 +106,136 @@ def kid_detail(kid_id):
         history=history_for(db, kid["_id"], limit=60),
         redemptions=redemptions_for(db, kid["_id"], limit=20),
         avatars=AVATARS,
+        pet=active_pet(db, kid["_id"]),
     )
+
+
+@bp.route("/kid/<kid_id>/pet", methods=["GET", "POST"])
+@parent_required
+def kid_pet(kid_id):
+    db = get_db()
+    kid = get_user(db, kid_id)
+    if not kid or kid.get("role") != "kid":
+        flash("找不到这个孩子。", "error")
+        return redirect(url_for("parent.family"))
+    if request.method == "POST":
+        action = request.form.get("action")
+        if action == "adjust":
+            try:
+                delta = int(request.form.get("delta", "0"))
+            except (TypeError, ValueError):
+                delta = 0
+            event, error = adjust_pet_hp(db, kid, delta,
+                                         request.form.get("reason", ""), g.user)
+            flash(error or f"宠物生命值已调整为 {event['hp_after']}。",
+                  "error" if error else "success")
+        elif action == "adopt":
+            pet, error = adopt_pet(db, kid, request.form.get("name", ""),
+                                   request.form.get("species", "cat"), g.user)
+            flash(error or f"已为 {kid['name']} 设置新的宠物。",
+                  "error" if error else "success")
+        return redirect(url_for("parent.kid_pet", kid_id=kid_id))
+    companion = active_pet(db, kid["_id"])
+    if companion:
+        companion["status"] = status_for(
+            companion.get("hp", 0),
+            (db.family_settings.find_one({"_id": "family"}) or {})
+            .get("pet_rules", DEFAULT_PET_RULES))
+    history = list(db.pet_events.find({"kid_id": kid["_id"]})
+                   .sort("created_at", -1).limit(100))
+    pets = list(db.pets.find({"kid_id": kid["_id"]}).sort("created_at", -1))
+    return render_template("parent/pet.html", kid=kid, pet=companion,
+                           history=history, pets=pets)
+
+
+@bp.route("/pet-rules", methods=["GET", "POST"])
+@parent_required
+def pet_rules():
+    db = get_db()
+    settings = db.family_settings.find_one({"_id": "family"}) or {}
+    rules = dict(DEFAULT_PET_RULES)
+    rules.update(settings.get("pet_rules", {}))
+    if request.method == "POST":
+        try:
+            maximum = int(request.form.get("max_hp", "100"))
+            numerator = int(request.form.get("ratio_numerator", "1"))
+            denominator = int(request.form.get("ratio_denominator", "1"))
+        except (TypeError, ValueError):
+            maximum, numerator, denominator = 0, 0, 0
+        if maximum > 0:
+            import math
+            care = max(1, math.ceil(maximum * .2))
+            good = max(care, math.ceil(maximum * .5))
+            healthy = max(good, math.ceil(maximum * .8))
+            ranges = [(1, care - 1, "weak", "虚弱"),
+                      (care, good - 1, "care", "需要照顾"),
+                      (good, healthy - 1, "good", "良好"),
+                      (healthy, maximum, "healthy", "健康")]
+            thresholds = [{"min": 0, "max": 0, "status": "recover", "label_zh": "需要恢复"}]
+            thresholds.extend({"min": low, "max": high, "status": state, "label_zh": label}
+                              for low, high, state, label in ranges if low <= high)
+        else:
+            thresholds = []
+        updated_rules = {
+            "enabled": bool(request.form.get("enabled")),
+            "max_hp": maximum, "ratio_numerator": numerator,
+            "ratio_denominator": denominator,
+            "apply_kinds": [kind for kind in request.form.getlist("apply_kinds")
+                            if kind in {"quest", "parent_award", "parent_deduct"}],
+            "thresholds": thresholds,
+        }
+        ok, error = update_pet_rules(db, g.user, updated_rules,
+                                     request.form.get("reason", ""))
+        flash(error or "宠物规则已保存。", "error" if error else "success")
+        return redirect(url_for("parent.pet_rules"))
+    return render_template("parent/pet_rules.html", rules=rules)
+
+
+@bp.route("/settings", methods=["GET", "POST"])
+@parent_required
+def settings():
+    from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+    db = get_db()
+    doc = db.family_settings.find_one({"_id": "family"}) or {}
+    if request.method == "POST":
+        name = request.form.get("family_name", "").strip()[:80]
+        locale = request.form.get("default_locale", "zh_CN")
+        timezone_name = request.form.get("timezone", "Asia/Shanghai")
+        error = None
+        try:
+            ZoneInfo(timezone_name)
+        except (ZoneInfoNotFoundError, ValueError):
+            error = "时区无效。"
+        if locale != "zh_CN":
+            error = "当前版本仅支持简体中文。"
+        if not name:
+            error = "请填写家庭名称。"
+        if error:
+            flash(error, "error")
+        else:
+            before = {k: doc.get(k) for k in ("family_name", "default_locale", "timezone")}
+            after = {"family_name": name, "default_locale": locale,
+                     "timezone": timezone_name}
+            db.family_settings.update_one(
+                {"_id": "family"},
+                {"$set": {**after, "updated_at": __import__("datetime").datetime.now(
+                    __import__("datetime").timezone.utc), "updated_by": g.user["_id"]}},
+                upsert=True)
+            db.audit_logs.insert_one({
+                "actor_id": g.user["_id"], "actor_role": "parent",
+                "action": "family_settings.updated", "target_type": "family_settings",
+                "target_id": "family", "before": before, "after": after,
+                "reason": "家长更新家庭设置", "created_at": __import__("datetime").datetime.now(
+                    __import__("datetime").timezone.utc),
+            })
+            current_app.config["TIMEZONE"] = timezone_name
+            current_app.config["TZINFO"] = ZoneInfo(timezone_name)
+            flash("家庭设置已保存。", "success")
+        return redirect(url_for("parent.settings"))
+    doc.setdefault("family_name", "我们的家")
+    doc.setdefault("default_locale", "zh_CN")
+    doc.setdefault("timezone", "Asia/Shanghai")
+    return render_template("parent/settings.html", settings=doc)
 
 
 # ---------------------------------------------------------------------------
@@ -116,20 +259,18 @@ def decide_redemption_route(redemption_id):
     approve = request.form.get("decision") == "approve"
     red = decide_redemption(get_db(), redemption_id, approve, g.user)
     if not red:
-        flash("That request was already dealt with.", "warn")
+        flash("此申请已处理。", "warn")
     elif approve:
-        notify(get_db(), red["kid_id"], "purchase_approved",
-               f"{red['reward_emoji']} {red['reward_title']} is yours!",
-               compose(f"{g.user['name']} has handed it over. Enjoy!",
-                       f"It cost you {red['cost']} points."))
-        flash(f"Marked '{red['reward_title']}' as handed over to {red['kid_name']}.", "success")
+        fanout(get_db(), red["kid_id"], "purchase_approved",
+               f"{red['reward_emoji']} {red['reward_title']} 已交付",
+               f"{g.user['name']} 已确认交付。兑换花费 {red['cost']} 积分。")
+        flash(f"已将「{red['reward_title']}」交付给 {red['kid_name']}。", "success")
     else:
         db = get_db()
-        notify(db, red["kid_id"], "purchase_rejected",
-               f"{red['reward_title']} wasn't approved",
-               f"Your {red['cost']} points have been put back.")
+        fanout(db, red["kid_id"], "purchase_rejected",
+               f"{red['reward_title']} 未获批准", f"{red['cost']} 积分已退回。")
         check_goal_reached(db, red["kid_id"])
-        flash(f"Turned down '{red['reward_title']}' — {red['cost']} points refunded.", "info")
+        flash(f"已拒绝「{red['reward_title']}」，退回 {red['cost']} 积分。", "info")
     return redirect(safe_next(url_for("parent.approvals")))
 
 
@@ -139,21 +280,18 @@ def decide_claim_route(claim_id):
     approve = request.form.get("decision") == "approve"
     claim = decide_quest_claim(get_db(), claim_id, approve, g.user)
     if not claim:
-        flash("That request was already dealt with.", "warn")
+        flash("此申请已处理。", "warn")
     elif approve:
         db = get_db()
-        notify(db, claim["kid_id"], "quest_approved",
-               f"{claim['quest_emoji']} {claim['quest_title']} approved!",
-               compose(f"You earned {claim['points']} points.",
-                       f"Approved by {g.user['name']}."))
+        fanout(db, claim["kid_id"], "quest_approved",
+               f"{claim['quest_emoji']} {claim['quest_title']} 已通过",
+               f"获得 {claim['points']} 积分。审批人：{g.user['name']}。")
         check_goal_reached(db, claim["kid_id"])
-        flash(f"{claim['kid_name']} earned {claim['points']} points for "
-              f"'{claim['quest_title']}'.", "success")
+        flash(f"{claim['kid_name']} 完成「{claim['quest_title']}」，获得 {claim['points']} 积分。", "success")
     else:
-        notify(get_db(), claim["kid_id"], "quest_rejected",
-               f"{claim['quest_title']} was sent back",
-               "Have another go and mark it done again.")
-        flash(f"Sent '{claim['quest_title']}' back to {claim['kid_name']}.", "info")
+        fanout(get_db(), claim["kid_id"], "quest_rejected",
+               f"{claim['quest_title']} 未通过", "请根据家长提示再次尝试。")
+        flash(f"已将「{claim['quest_title']}」退回给 {claim['kid_name']}。", "info")
     return redirect(safe_next(url_for("parent.approvals")))
 
 
@@ -200,7 +338,7 @@ def create_reward():
     db = get_db()
     title = request.form.get("title", "").strip()[:80]
     if not title:
-        flash("Give the reward a name.", "error")
+        flash("请填写奖励名称。", "error")
         return redirect(url_for("parent.rewards"))
 
     doc = {
@@ -217,7 +355,7 @@ def create_reward():
                 compose(f"Costs {doc['cost']} points",
                         doc.get("description"),
                         stock_label(doc) and f"Available: {stock_label(doc)}"))
-    flash(f"Added '{title}' to the shop.", "success")
+    flash(f"已将「{title}」添加到奖励商城。", "success")
     return redirect(url_for("parent.rewards"))
 
 
@@ -275,7 +413,7 @@ def create_quest():
     db = get_db()
     title = request.form.get("title", "").strip()[:80]
     if not title:
-        flash("Give the quest a name.", "error")
+        flash("请填写任务名称。", "error")
         return redirect(url_for("parent.quests"))
 
     repeat = request.form.get("repeat", "daily")
@@ -292,7 +430,7 @@ def create_quest():
         "assigned_to": [a for a in assigned if a],
         "active": True,
     })
-    flash(f"Added the quest '{title}'.", "success")
+    flash(f"已添加任务「{title}」。", "success")
     return redirect(url_for("parent.quests"))
 
 
@@ -359,20 +497,27 @@ def add_kid():
     db = get_db()
     name = request.form.get("name", "").strip()[:40]
     if not name:
-        flash("What's their name?", "error")
+        flash("请填写孩子姓名。", "error")
         return redirect(url_for("parent.family"))
 
     pin = request.form.get("pin", "").strip()
-    if pin and not (pin.isdigit() and 4 <= len(pin) <= 6):
-        flash("A PIN needs to be 4-6 digits (or leave it blank).", "error")
+    if not (pin.isdigit() and 4 <= len(pin) <= 6):
+        flash("请设置 4 至 6 位数字 PIN。", "error")
         return redirect(url_for("parent.family"))
 
     create_kid(db, name,
                request.form.get("avatar") or AVATARS[0],
                request.form.get("color") or COLORS[0][1],
                pin=pin or None,
-               points=as_int(request.form.get("points"), default=0, low=0, high=100000))
-    flash(f"{name} is in! They can log in from the front page.", "success")
+               points=as_int(request.form.get("points"), default=0, low=0, high=100000),
+               actor=g.user)
+    db.audit_logs.insert_one({
+        "actor_id": g.user["_id"], "actor_role": "parent", "action": "kid.created",
+        "target_type": "user", "target_id": name,
+        "reason": "添加家庭成员", "created_at": __import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc),
+    })
+    flash(f"已添加 {name}，可从首页登录。", "success")
     return redirect(url_for("parent.family"))
 
 
@@ -387,28 +532,47 @@ def update_kid(kid_id):
 
     action = request.form.get("action")
     if action == "delete":
-        db.users.delete_one({"_id": kid["_id"]})
-        db.transactions.delete_many({"kid_id": kid["_id"]})
-        db.redemptions.delete_many({"kid_id": kid["_id"]})
-        db.quest_claims.delete_many({"kid_id": kid["_id"]})
-        flash(f"Removed {kid['name']} and their history.", "info")
+        db.users.update_one({"_id": kid["_id"]}, {"$set": {"status": "inactive"}})
+        db.audit_logs.insert_one({
+            "actor_id": g.user["_id"], "actor_role": "parent",
+            "action": "kid.deactivated", "target_type": "user",
+            "target_id": str(kid["_id"]), "reason": "家长停用儿童账户",
+            "created_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc),
+        })
+        flash(f"已停用 {kid['name']} 的账户，积分及历史记录已保留。", "info")
         return redirect(url_for("parent.family"))
 
     if action == "pin":
         pin = request.form.get("pin", "").strip()
-        if pin and not (pin.isdigit() and 4 <= len(pin) <= 6):
-            flash("A PIN needs to be 4-6 digits (or leave it blank for none).", "error")
+        if not (pin.isdigit() and 4 <= len(pin) <= 6):
+            flash("PIN 必须为 4 至 6 位数字。", "error")
         else:
             set_kid_pin(db, kid["_id"], pin or None)
-            flash(f"{kid['name']}'s PIN {'updated' if pin else 'removed'}.", "success")
+            db.audit_logs.insert_one({
+                "actor_id": g.user["_id"], "actor_role": "parent",
+                "action": "kid.pin.updated", "target_type": "user",
+                "target_id": str(kid["_id"]), "reason": "家长重置儿童 PIN",
+                "created_at": __import__("datetime").datetime.now(
+                    __import__("datetime").timezone.utc),
+            })
+            flash(f"已更新 {kid['name']} 的 PIN。", "success")
         return redirect(url_for("parent.family"))
 
-    db.users.update_one({"_id": kid["_id"]}, {"$set": {
+    before = {"name": kid.get("name"), "avatar": kid.get("avatar"),
+              "color": kid.get("color")}
+    after = {
         "name": request.form.get("name", kid["name"]).strip()[:40] or kid["name"],
         "avatar": request.form.get("avatar") or kid.get("avatar"),
         "color": request.form.get("color") or kid.get("color"),
-    }})
-    flash("Saved.", "success")
+    }
+    db.users.update_one({"_id": kid["_id"]}, {"$set": after})
+    db.audit_logs.insert_one({
+        "actor_id": g.user["_id"], "actor_role": "parent", "action": "kid.updated",
+        "target_type": "user", "target_id": str(kid["_id"]),
+        "before": before, "after": after, "reason": "更新儿童资料",
+        "created_at": __import__("datetime").datetime.now(__import__("datetime").timezone.utc),
+    })
+    flash("资料已保存。", "success")
     return redirect(url_for("parent.family"))
 
 

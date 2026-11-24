@@ -1,29 +1,29 @@
 {% extends 'base.html' %}
-{% block title %}Family &middot; {{ app_name }}{% endblock %}
+{% block title %}家庭成员 · {{ app_name }}{% endblock %}
 
 {% block content %}
-<div class="section__head section__head--page"><h2>Family</h2></div>
+<div class="section__head section__head--page"><h2>家庭成员</h2></div>
 
 <section class="card card--form">
-  <h2 class="card__title">Add a child</h2>
+  <h2 class="card__title">添加孩子</h2>
   <form method="post" action="{{ url_for('parent.add_kid') }}" class="formgrid">
     {{ csrf_field() }}
     <label class="field field--grow">
-      <span>Name</span>
+      <span>姓名</span>
       <input name="name" required maxlength="40" placeholder="Ava">
     </label>
     <label class="field field--num">
-      <span>Starting points</span>
+      <span>初始积分</span>
       <input name="points" type="number" min="0" max="100000" value="0" inputmode="numeric">
     </label>
     <label class="field field--num">
-      <span>PIN <em>(optional)</em></span>
+      <span>登录 PIN <em>（必填）</em></span>
       <input name="pin" inputmode="numeric" pattern="[0-9]*" maxlength="6"
-             placeholder="4-6 digits" autocomplete="off">
+             placeholder="4 至 6 位数字" autocomplete="off" required>
     </label>
 
     <fieldset class="field field--full">
-      <span>Pick an avatar</span>
+      <span>选择头像</span>
       <div class="avatarpick">
         {% for a in avatars %}
           <label>
@@ -35,7 +35,7 @@
     </fieldset>
 
     <fieldset class="field field--full">
-      <span>Pick a colour</span>
+      <span>选择颜色</span>
       <div class="colourpick">
         {% for name, hex in colors %}
           <label title="{{ name }}">
@@ -46,7 +46,7 @@
       </div>
     </fieldset>
 
-    <button class="btn btn--primary" type="submit">Add child</button>
+    <button class="btn btn--primary" type="submit">添加孩子</button>
   </form>
 </section>
 
@@ -57,7 +57,7 @@
         <span class="rowcard__emoji">{{ kid.avatar }}</span>
         <span class="rowcard__title">
           {{ kid.name }}
-          <em class="tag">{{ 'PIN set' if kid.pin_hash else 'no PIN' }}</em>
+          <em class="tag">{{ '已设置 PIN' if kid.pin_hash else '尚未设置 PIN' }}</em>
         </span>
         <span class="price">{{ kid.points }} &#11088;</span>
         <span class="rowcard__chev">&#9662;</span>
@@ -66,11 +66,11 @@
       <form method="post" action="{{ url_for('parent.update_kid', kid_id=kid._id) }}" class="formgrid">
         {{ csrf_field() }}
         <label class="field field--grow">
-          <span>Name</span>
+          <span>姓名</span>
           <input name="name" value="{{ kid.name }}" maxlength="40" required>
         </label>
         <fieldset class="field field--full">
-          <span>Avatar</span>
+          <span>头像</span>
           <div class="avatarpick">
             {% for a in avatars %}
               <label>
@@ -81,7 +81,7 @@
           </div>
         </fieldset>
         <fieldset class="field field--full">
-          <span>Colour</span>
+          <span>颜色</span>
           <div class="colourpick">
             {% for name, hex in colors %}
               <label title="{{ name }}">
@@ -92,7 +92,7 @@
           </div>
         </fieldset>
         <div class="rowcard__actions">
-          <button class="btn btn--primary btn--sm" type="submit" name="action" value="save">Save</button>
+          <button class="btn btn--primary btn--sm" type="submit" name="action" value="save">保存</button>
         </div>
       </form>
 
@@ -100,17 +100,16 @@
         {{ csrf_field() }}
         <input type="hidden" name="action" value="pin">
         <label class="field field--num">
-          <span>Change PIN</span>
+          <span>重置 PIN</span>
           <input name="pin" inputmode="numeric" pattern="[0-9]*" maxlength="6"
-                 placeholder="blank = none" autocomplete="off">
+                 placeholder="输入 4 至 6 位数字" autocomplete="off" required>
         </label>
-        <button class="btn btn--ghost btn--sm" type="submit">Set PIN</button>
+        <button class="btn btn--ghost btn--sm" type="submit">更新 PIN</button>
       </form>
 
       <div class="rowcard__body">
-        <h3 class="card__title">{{ kid.name }}'s notifications</h3>
-        <p class="card__note">They always see these in the app. Add a channel
-        to reach them on a phone or tablet as well.</p>
+        <h3 class="card__title">{{ kid.name }}的通知</h3>
+        <p class="card__note">应用内通知始终可见。可添加推送渠道，在手机或平板上接收通知。</p>
         {% set owner = kid %}
         {% set events = kid_events %}
         {% include 'partials/channels.html' %}
@@ -119,20 +118,20 @@
       <form method="post" action="{{ url_for('parent.update_kid', kid_id=kid._id) }}" class="subform subform--danger">
         {{ csrf_field() }}
         <button class="btn btn--danger btn--sm" type="submit" name="action" value="delete"
-                data-confirm="Remove {{ kid.name }} and delete all their points history? This can't be undone.">
-          Remove {{ kid.name }}
+                data-confirm="停用 {{ kid.name }} 的账户？积分与历史记录会保留。">
+          停用 {{ kid.name }}
         </button>
       </form>
     </details>
   {% else %}
     <div class="empty empty--big">
       <div class="empty__emoji">&#128118;</div>
-      <p>No kids added yet.</p>
+      <p>还没有添加孩子。</p>
     </div>
   {% endfor %}
 </div>
 
-<div class="section__head"><h2>Grown-ups</h2></div>
+<div class="section__head"><h2>家长</h2></div>
 
 <div class="stacklist">
   {% for p in parents %}
@@ -141,7 +140,7 @@
         <span class="rowcard__emoji">{{ p.avatar or '🧑' }}</span>
         <span class="rowcard__title">
           {{ p.name }}
-          {% if p._id == current_user._id %}<em class="tag">you</em>{% endif %}
+          {% if p._id == current_user._id %}<em class="tag">你</em>{% endif %}
         </span>
         <span class="grownup__email">{{ p.email }}</span>
         <span class="rowcard__chev">&#9662;</span>
@@ -149,9 +148,9 @@
 
       {% if p._id == current_user._id %}
         <div class="rowcard__body">
-          <p class="card__note">Change your name, email, icon or password on your own account page.</p>
+          <p class="card__note">可在个人账户页面修改姓名、邮箱、头像或密码。</p>
           <div class="rowcard__actions">
-            <a class="btn btn--primary btn--sm" href="{{ url_for('parent.account') }}">Edit my account</a>
+            <a class="btn btn--primary btn--sm" href="{{ url_for('parent.account') }}">编辑我的账户</a>
           </div>
         </div>
       {% else %}

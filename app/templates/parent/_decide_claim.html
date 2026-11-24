@@ -2,11 +2,11 @@
   <form method="post" action="{{ url_for('parent.decide_claim_route', claim_id=c._id) }}">
     {{ csrf_field() }}
     <input type="hidden" name="next" value="{{ request.path }}">
-    <button class="btn btn--go btn--sm" type="submit" name="decision" value="approve">Approve</button>
+    <button class="btn btn--go btn--sm" type="submit" name="decision" value="approve" data-confirm="确认批准此任务并发放积分及宠物 HP？">批准</button>
   </form>
   <form method="post" action="{{ url_for('parent.decide_claim_route', claim_id=c._id) }}">
     {{ csrf_field() }}
     <input type="hidden" name="next" value="{{ request.path }}">
-    <button class="btn btn--ghost btn--sm" type="submit" name="decision" value="reject">Not yet</button>
+    <button class="btn btn--ghost btn--sm" type="submit" name="decision" value="reject" data-confirm="确认退回此任务申请？">退回</button>
   </form>
 </div>

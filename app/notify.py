@@ -328,6 +328,23 @@ def notify(db, user, event, title, body, url=None):
     return doc
 
 
+def fanout(db, user, event, title, body):
+    """Send to configured channels when an in-app record was committed already."""
+    if event not in EVENTS:
+        return
+    if not isinstance(user, dict):
+        user = db.users.find_one({"_id": user})
+    if not user:
+        return
+    for channel in user.get("channels", []):
+        if not channel.get("enabled", True):
+            continue
+        wanted = channel.get("events")
+        if wanted and event not in wanted:
+            continue
+        _pool.submit(_deliver_quietly, channel, title, body)
+
+
 def notify_many(db, users, event, title, body, url=None):
     for user in users:
         notify(db, user, event, title, body, url)
