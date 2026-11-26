@@ -9,6 +9,18 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Nothing yet.
 
+## [1.6.3] — 2026-11-26
+
+### Fixed
+
+- **Pet HP could remain unchanged for older pet records.** Initialize missing
+  pet versions during migration and update HP inside the points transaction
+  without requiring a version field already to exist.
+
+### Changed
+
+- Localized the parent dashboard title and adjusted activity delta colors.
+
 ## [1.6.2] — 2026-11-26
 
 ### Fixed

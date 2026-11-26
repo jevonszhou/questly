@@ -62,12 +62,22 @@ def apply_points_effect(db, kid, transaction, session):
     after = min(maximum, max(0, before + requested))
     applied = after - before
     status = _status(after, rules.get("thresholds", DEFAULT_PET_RULES["thresholds"]))
-    db.pets.update_one(
-        {"_id": pet["_id"], "version": pet.get("version", 1)},
+    # Some pets created before versioning was added have no `version` field.
+    # Filtering by a default version of 1 silently misses those documents while
+    # allowing the points transaction to commit. Transactions already protect
+    # concurrent writes, so update by _id and initialize/increment version here.
+    try:
+        next_version = int(pet.get("version") or 0) + 1
+    except (TypeError, ValueError):
+        next_version = 1
+    changed = db.pets.update_one(
+        {"_id": pet["_id"]},
         {"$set": {"hp": after, "max_hp": maximum, "status": status,
-                  "updated_at": _now()}, "$inc": {"version": 1}},
+                  "updated_at": _now(), "version": next_version}},
         session=session,
     )
+    if changed.matched_count != 1:
+        raise RuntimeError("Active pet disappeared while applying its HP change.")
     transaction["pet_effect"] = {
         "applied": True, "requested_hp_delta": requested,
         "applied_hp_delta": applied, "hp_before": before, "hp_after": after,
@@ -111,6 +121,12 @@ def ensure_pet(db, kid, *, name=None, species="cat", actor=None):
     """Create a starting pet only if the child has no active pet."""
     existing = active_pet(db, kid["_id"])
     if existing:
+        if existing.get("version") is None:
+            db.pets.update_one(
+                {"_id": existing["_id"], "version": None},
+                {"$set": {"version": 1}},
+            )
+            existing["version"] = 1
         db.users.update_one({"_id": kid["_id"]}, {"$set": {"active_pet_id": existing["_id"]}})
         return existing
     maximum = int((db.family_settings.find_one({"_id": "family"}) or {})

@@ -457,8 +457,8 @@ input, select, button, textarea { font: inherit; color: inherit; }
   text-align: center;
   font-family: var(--font-display); font-weight: 800; font-size: 1rem;
 }
-.feed__delta.is-up { background: rgba(18, 214, 160, .16); color: #0a8b68; }
-.feed__delta.is-down { background: rgba(255, 82, 82, .13); color: #c33; }
+.feed__delta.is-up { background: rgba(18, 214, 160, .16); color: #c33; }
+.feed__delta.is-down { background: rgba(255, 82, 82, .13); color: #0a8b68; }
 .feed__emoji { font-size: 1.7rem; width: 44px; text-align: center; }
 .feed__text { flex: 1; min-width: 0; }
 .feed__text p { font-weight: 700; font-size: .96rem; }
