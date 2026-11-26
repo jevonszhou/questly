@@ -9,6 +9,20 @@ and the project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Nothing yet.
 
+## [1.6.2] — 2026-11-26
+
+### Fixed
+
+- **Manual point deductions were always rejected by validation.** Validate the
+  entered amount before applying the negative sign so deductions from 1 to
+  1000 points are accepted.
+
+### Changed
+
+- Updated the app name and remaining parent account, family, and notification
+  interface text for the Chinese UI.
+- Improved spacing and alignment in parent account and family screens.
+
 ## [1.5.0] — 2026-08-30
 
 ### Added

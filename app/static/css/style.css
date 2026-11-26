@@ -229,7 +229,7 @@ input, select, button, textarea { font: inherit; color: inherit; }
 }
 .card--form { display: flex; flex-direction: column; gap: 14px; }
 .card__title { font-size: 1.15rem; }
-.card__note { color: var(--ink-3); font-size: .9rem; margin-top: -6px; }
+.card__note { color: var(--ink-3); font-size: .9rem; margin-top: 4px; }
 
 /* --- gate screens (who / login / setup) --------------------------------- */
 .gate .page { min-height: 100dvh; justify-content: center; }
@@ -656,7 +656,7 @@ p.field--full { flex: 1 1 100%; margin: 0; }
 .rowcard__chev { color: var(--ink-3); transition: transform .18s; }
 .rowcard[open] .rowcard__chev { transform: rotate(180deg); }
 .rowcard > form { padding: 4px 18px 18px; }
-.rowcard__actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.rowcard__actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; justify-content: flex-end; }
 
 .tag {
   display: inline-block;
@@ -674,7 +674,7 @@ p.field--full { flex: 1 1 100%; margin: 0; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   max-width: 40%;
 }
-.rowcard__body { padding: 0 0 4px; }
+.rowcard__body { padding: 4px 18px 18px; }
 
 .grownups { display: flex; flex-direction: column; gap: 8px; }
 .grownup {

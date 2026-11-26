@@ -70,13 +70,12 @@
       </div>
     </details>
   {% else %}
-    <p class="card__note">No channels yet &mdash; {{ owner.name }} sees notifications
-    inside the app only.</p>
+    <p class="card__note">暂时没有通知渠道 &mdash; {{ owner.name }} 仅在应用内接收通知。</p>
   {% endfor %}
 </div>
 
 <details class="addchan">
-  <summary>Add a notification channel</summary>
+  <summary>添加通知渠道</summary>
   <form method="post" action="{{ url_for('parent.add_channel_route', owner_id=owner._id) }}">
     {{ csrf_field() }}
 
@@ -126,6 +125,6 @@
       </div>
     </fieldset>
 
-    <button class="btn btn--primary btn--sm" type="submit">Connect and send a test</button>
+    <button class="btn btn--primary btn--sm" type="submit">连接并发送测试通知</button>
   </form>
 </details>

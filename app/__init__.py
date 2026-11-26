@@ -24,7 +24,7 @@ except ImportError:  # pragma: no cover
 from .db import get_db, init_mongo
 from .models import COLORS, get_user, pending_count
 
-APP_NAME = "Questly"
+APP_NAME = "Questly家庭"
 
 
 def create_app(overrides=None):
