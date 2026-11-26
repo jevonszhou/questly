@@ -58,13 +58,13 @@ def award():
         amount = 0
     reason = request.form.get("reason", "").strip()[:240]
 
-    # The "Take away" button reuses the same amount box.
-    if request.form.get("negate"):
-        amount = -abs(amount)
-
     if amount < 1 or amount > 1000:
         flash("金额必须为 1 至 1000 的整数。", "warn")
         return redirect(safe_next(url_for("parent.dashboard")))
+
+    # Validate the positive magnitude first, then apply the deduction sign.
+    if request.form.get("negate"):
+        amount = -amount
     if not reason:
         flash("请填写积分变动原因。", "warn")
         return redirect(safe_next(url_for("parent.dashboard")))
