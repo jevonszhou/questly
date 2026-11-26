@@ -10,3 +10,8 @@ README.md
 __pycache__
 docs
 venv
+# Keep local database files and backup archives out of Docker build context.
+/mongo-data/
+/backups/
+*.archive.gz
+*.dump
